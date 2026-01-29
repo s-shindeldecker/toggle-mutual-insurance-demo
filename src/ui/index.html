@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Insurance Quote Demo</title>
+    <style>
+      body {
+        font-family: system-ui, -apple-system, sans-serif;
+        margin: 24px;
+        color: #1f2933;
+        background: #f8f9fb;
+      }
+      h1 {
+        font-size: 22px;
+        margin-bottom: 8px;
+      }
+      form {
+        display: grid;
+        gap: 12px;
+        padding: 16px;
+        background: #fff;
+        border-radius: 8px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+        max-width: 520px;
+      }
+      label {
+        font-weight: 600;
+        display: grid;
+        gap: 6px;
+      }
+      input, select {
+        padding: 8px 10px;
+        border-radius: 6px;
+        border: 1px solid #d9dfe6;
+      }
+      button {
+        padding: 10px 14px;
+        border: none;
+        border-radius: 6px;
+        background: #2b6cb0;
+        color: #fff;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      main {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: 16px;
+        margin-top: 20px;
+      }
+      section {
+        background: #fff;
+        padding: 16px;
+        border-radius: 8px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+      }
+      pre {
+        background: #f3f4f6;
+        padding: 10px;
+        border-radius: 6px;
+        overflow-x: auto;
+      }
+      .muted {
+        color: #6b7280;
+        font-size: 14px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Insurance Quote Decision Demo</h1>
+    <p class="muted">
+      Submit a quote input to see eligibility, strategy selection, model outputs,
+      and the final offer.
+    </p>
+    <div id="app"></div>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>
