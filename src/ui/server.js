@@ -1,3 +1,6 @@
+// Validation-only: load .env for LaunchDarkly connectivity checks.
+require("dotenv").config();
+
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
@@ -5,6 +8,10 @@ const { runQuoteDecisionFlow } = require("../quote");
 
 const PORT = process.env.PORT || 3000;
 const uiDir = __dirname;
+const ldEnabled = Boolean(process.env.LAUNCHDARKLY_SDK_KEY);
+// Validation-only: log LD status on startup.
+console.log(`[LD] LD_ENABLED=${ldEnabled}`);
+console.log(`[LD] LaunchDarkly init will ${ldEnabled ? "" : "not "}run.`);
 
 const readJsonBody = (req) =>
   new Promise((resolve, reject) => {

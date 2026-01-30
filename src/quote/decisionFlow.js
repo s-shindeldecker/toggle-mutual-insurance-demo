@@ -2,7 +2,10 @@ const { eventEmitter } = require("../analytics/eventEmitter");
 const { AnalyticsEvents } = require("../analytics/events");
 const { evaluateFakeModels } = require("../models/fake");
 const { Quote } = require("./quote");
-const { constructOffer } = require("./constructOffer");
+const {
+  constructOffer,
+  OPTIMIZED_PROPENSITY_THRESHOLD,
+} = require("./constructOffer");
 const {
   getOfferStrategyAssignment,
   getBooleanFlag,
@@ -164,7 +167,7 @@ const runQuoteDecisionFlow = async (input) => {
     quote,
     guardrails.forcedOfferStrategy
   );
-  quote.decisionSummary = {
+  const decisionSummary = {
     eligibility: {
       eligible: guardrails.eligibility.eligible,
       reasons: guardrails.eligibility.reasons,
@@ -173,6 +176,19 @@ const runQuoteDecisionFlow = async (input) => {
     offerStrategy,
     experimentationInfluenced: offerStrategy !== "baseline",
   };
+  if (offerStrategy === "optimized") {
+    const propensityScore = quote.modelOutputs?.propensityScore ?? 0;
+    const upsellTriggered = propensityScore >= OPTIMIZED_PROPENSITY_THRESHOLD;
+    decisionSummary.strategyDecision = {
+      decision: upsellTriggered ? "upsell_triggered" : "upsell_not_triggered",
+      reason: upsellTriggered
+        ? "propensity_at_or_above_threshold"
+        : "propensity_below_threshold",
+      propensityScore,
+      propensityThreshold: OPTIMIZED_PROPENSITY_THRESHOLD,
+    };
+  }
+  quote.decisionSummary = decisionSummary;
   constructOfferStep(quote, offerStrategy);
   completeQuote(quote);
   return quote;

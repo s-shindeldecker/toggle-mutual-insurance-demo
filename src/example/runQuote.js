@@ -1,7 +1,15 @@
+// Validation-only: load .env for LaunchDarkly connectivity checks.
+require("dotenv").config();
+
 const { runQuoteDecisionFlow } = require("../quote");
 const { eventEmitter } = require("../analytics/eventEmitter");
 
 const run = async () => {
+  const ldEnabled = Boolean(process.env.LAUNCHDARKLY_SDK_KEY);
+  // Validation-only: log LD status on startup.
+  console.log(`[LD] LD_ENABLED=${ldEnabled}`);
+  console.log(`[LD] LaunchDarkly init will ${ldEnabled ? "" : "not "}run.`);
+
   const quoteInput = {
     applicant: {
       age: 32,

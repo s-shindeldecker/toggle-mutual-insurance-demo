@@ -11,6 +11,8 @@ const initializeLaunchDarkly = () => {
 
   const sdkKey = process.env.LAUNCHDARKLY_SDK_KEY;
   if (!sdkKey) {
+    // Validation-only: warn when LD cannot initialize due to missing key.
+    console.warn("[LD] LaunchDarkly disabled: LAUNCHDARKLY_SDK_KEY is missing.");
     initPromise = Promise.resolve(null);
     return initPromise;
   }
@@ -19,10 +21,14 @@ const initializeLaunchDarkly = () => {
   try {
     ldSdk = require("launchdarkly-node-server-sdk");
   } catch (error) {
+    // Validation-only: warn when LD SDK is unavailable.
+    console.warn("[LD] LaunchDarkly disabled: SDK module not available.");
     initPromise = Promise.resolve(null);
     return initPromise;
   }
 
+  // Validation-only: log that LD initialization will run.
+  console.log("[LD] LaunchDarkly enabled: initializing SDK.");
   ldClient = ldSdk.init(sdkKey);
   initPromise = ldClient
     .waitForInitialization()
@@ -35,15 +41,27 @@ const initializeLaunchDarkly = () => {
 const getOfferStrategyAssignment = async (context) => {
   const client = await initializeLaunchDarkly();
   if (!client) {
+    // Validation-only: log fallback behavior.
+    console.log(
+      `[LD] Flag ${FLAG_KEY} fallback=${DEFAULT_STRATEGY} contextKey=${context.key}`
+    );
     return DEFAULT_STRATEGY;
   }
 
   try {
     const variant = await client.variation(FLAG_KEY, context, DEFAULT_STRATEGY);
+    // Validation-only: log evaluated value.
+    console.log(
+      `[LD] Flag ${FLAG_KEY} value=${variant} contextKey=${context.key}`
+    );
     if (variant === "baseline" || variant === "optimized") {
       return variant;
     }
   } catch (error) {
+    // Validation-only: log fallback on error.
+    console.log(
+      `[LD] Flag ${FLAG_KEY} fallback=${DEFAULT_STRATEGY} contextKey=${context.key}`
+    );
     return DEFAULT_STRATEGY;
   }
 
@@ -53,13 +71,25 @@ const getOfferStrategyAssignment = async (context) => {
 const getBooleanFlag = async (flagKey, context, defaultValue = true) => {
   const client = await initializeLaunchDarkly();
   if (!client) {
+    // Validation-only: log fallback behavior.
+    console.log(
+      `[LD] Flag ${flagKey} fallback=${defaultValue} contextKey=${context.key}`
+    );
     return defaultValue;
   }
 
   try {
     const value = await client.variation(flagKey, context, defaultValue);
+    // Validation-only: log evaluated value.
+    console.log(
+      `[LD] Flag ${flagKey} value=${value} contextKey=${context.key}`
+    );
     return typeof value === "boolean" ? value : defaultValue;
   } catch (error) {
+    // Validation-only: log fallback on error.
+    console.log(
+      `[LD] Flag ${flagKey} fallback=${defaultValue} contextKey=${context.key}`
+    );
     return defaultValue;
   }
 };

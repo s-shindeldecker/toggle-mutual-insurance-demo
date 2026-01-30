@@ -102,6 +102,7 @@ const App = () => {
                 offerStrategy: result.decisionSummary?.offerStrategy,
                 experimentationInfluenced:
                   result.decisionSummary?.experimentationInfluenced,
+                strategyDecision: result.decisionSummary?.strategyDecision,
               },
               null,
               2
