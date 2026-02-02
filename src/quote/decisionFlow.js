@@ -188,6 +188,7 @@ const runQuoteDecisionFlow = async (input) => {
       propensityThreshold: OPTIMIZED_PROPENSITY_THRESHOLD,
     };
   }
+  decisionSummary.riskTier = getRiskTier(quote.modelOutputs?.riskScore ?? 0);
   quote.decisionSummary = decisionSummary;
   constructOfferStep(quote, offerStrategy);
   completeQuote(quote);

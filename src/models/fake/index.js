@@ -11,8 +11,19 @@ const deterministicScore = (seed) => {
 const riskScoreModel = (quoteInput) => {
   const age = quoteInput.applicant?.age ?? 0;
   const state = quoteInput.applicant?.state ?? "unknown";
-  const seed = `${age}-${state}`;
-  const score = deterministicScore(seed);
+  const vehicleType = quoteInput.vehicle?.type ?? "sedan";
+  const annualMileage = quoteInput.vehicle?.annualMileage ?? 8000;
+  const typeBase = {
+    sedan: 20,
+    suv: 30,
+    truck: 35,
+    sports: 50,
+  }[vehicleType] ?? 25;
+  const mileageFactor = annualMileage > 10000 ? 20 : annualMileage >= 5000 ? 10 : 0;
+  const ageFactor = age < 25 ? 15 : age < 40 ? 5 : 0;
+  const seed = `${state}-${vehicleType}-${annualMileage}`;
+  const stateNudge = deterministicScore(seed) % 10;
+  const score = typeBase + mileageFactor + ageFactor + stateNudge;
   return clamp(score, 1, 99);
 };
 

@@ -30,9 +30,14 @@ const readJsonBody = (req) =>
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 
-const buildQuoteInput = ({ state, age, riskProxy }) => {
-  const normalizedRisk = clamp(Number(riskProxy) || 50, 0, 100);
-  const annualMileage = Math.round(5000 + (normalizedRisk / 100) * 15000);
+const buildQuoteInput = ({ state, age, vehicleType, annualMileageBand }) => {
+  const mileageBand = annualMileageBand || "5k-10k";
+  const annualMileage =
+    mileageBand === "under-5k"
+      ? 4000
+      : mileageBand === "over-10k"
+        ? 15000
+        : 8000;
 
   return {
     applicant: {
@@ -41,6 +46,7 @@ const buildQuoteInput = ({ state, age, riskProxy }) => {
     },
     vehicle: {
       year: 2018,
+      type: vehicleType || "sedan",
       annualMileage,
     },
     customer: {
@@ -87,7 +93,11 @@ const server = http.createServer(async (req, res) => {
       const body = await readJsonBody(req);
       const quoteInput = buildQuoteInput(body);
       const quote = await runQuoteDecisionFlow(quoteInput);
-      respondJson(res, 200, { quote });
+      const sanitizedQuote = {
+        ...quote,
+        modelOutputs: undefined,
+      };
+      respondJson(res, 200, { quote: sanitizedQuote });
     } catch (error) {
       respondJson(res, 400, { error: "Invalid request body" });
     }

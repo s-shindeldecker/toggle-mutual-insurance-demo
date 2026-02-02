@@ -8,7 +8,8 @@ const App = () => {
   const [form, setForm] = React.useState({
     state: "CA",
     age: 32,
-    riskProxy: 50,
+    vehicleType: "sedan",
+    annualMileageBand: "5k-10k",
   });
   const [step, setStep] = React.useState("home");
   const [result, setResult] = React.useState(null);
@@ -19,9 +20,9 @@ const App = () => {
     email: "",
     address: "",
   });
-  const [mascotText, setMascotText] = React.useState(
-    "Meet ToMu — the Tree Shrew"
-  );
+  const [ldReady, setLdReady] = React.useState(false);
+  const [mascotText, setMascotText] = React.useState(null);
+  const ldClientRef = React.useRef(null);
 
   React.useEffect(() => {
     const loadMascotText = async () => {
@@ -36,10 +37,13 @@ const App = () => {
         }
 
         // Client-side LaunchDarkly is for presentation-only flags. Never evaluate decision flags here.
-        const client = window.LDClient?.initialize(payload.clientId, {
-          kind: "user",
-          key: "ui_home",
-        });
+        if (!ldClientRef.current) {
+          ldClientRef.current = window.LDClient?.initialize(payload.clientId, {
+            kind: "user",
+            key: "ui_home",
+          });
+        }
+        const client = ldClientRef.current;
         if (!client) {
           return;
         }
@@ -50,12 +54,21 @@ const App = () => {
           "Meet ToMu — the Tree Shrew"
         );
         setMascotText(value);
+        setLdReady(true);
+        client.on("change:mascot-text-box", (nextValue) => {
+          setMascotText(nextValue);
+        });
       } catch (error) {
         // Keep default text on failure.
       }
     };
 
     loadMascotText();
+    return () => {
+      if (ldClientRef.current) {
+        ldClientRef.current.off("change:mascot-text-box");
+      }
+    };
   }, []);
 
   const updateField = (event) => {
@@ -106,6 +119,11 @@ const App = () => {
   const coverageTier = offer?.coverageTier || "No offer";
   const decision = result?.decisionSummary;
   const guardrails = decision?.guardrails;
+  const riskTier =
+    result?.decisionSummary?.riskTier
+      ? result.decisionSummary.riskTier[0].toUpperCase() +
+        result.decisionSummary.riskTier.slice(1)
+      : "—";
 
   const Stepper = () => html`
     <div className="stepper">
@@ -143,7 +161,9 @@ const App = () => {
               src="/assets/Friendly_tree_shrew_in_a_hoodie-30859d22-2387-4192-9f52-b81b25dc68f1.png"
               alt="ToMu Tree Shrew mascot"
             />
-            <p className="muted">${mascotText}</p>
+            ${ldReady &&
+            mascotText &&
+            html`<p className="muted">${mascotText}</p>`}
           </div>
           <div>
             <h3>How it works</h3>
@@ -184,15 +204,29 @@ const App = () => {
                 />
               </label>
               <label>
-                Risk Proxy (0-100)
-                <input
-                  name="riskProxy"
-                  type="number"
-                  min="0"
-                  max="100"
-                  value=${form.riskProxy}
+                Vehicle type
+                <select
+                  name="vehicleType"
+                  value=${form.vehicleType}
                   onInput=${updateField}
-                />
+                >
+                  <option value="sedan">Sedan</option>
+                  <option value="suv">SUV</option>
+                  <option value="truck">Truck</option>
+                  <option value="sports">Sports car</option>
+                </select>
+              </label>
+              <label>
+                Annual mileage
+                <select
+                  name="annualMileageBand"
+                  value=${form.annualMileageBand}
+                  onInput=${updateField}
+                >
+                  <option value="under-5k">Under 5k</option>
+                  <option value="5k-10k">5k–10k</option>
+                  <option value="over-10k">Over 10k</option>
+                </select>
               </label>
             </div>
             <div className="actions">
@@ -268,17 +302,8 @@ const App = () => {
                     decision?.strategyDecision?.propensityScore ?? "—"
                   } / threshold ${decision?.strategyDecision?.propensityThreshold ?? "—"}
                 </p>
-              </div>
-              <div>
-                <h4>Model outputs</h4>
                 <p className="muted">
-                  Risk score: ${result.modelOutputs?.riskScore ?? "—"}
-                </p>
-                <p className="muted">
-                  Price factor: ${result.modelOutputs?.priceFactor ?? "—"}
-                </p>
-                <p className="muted">
-                  Propensity score: ${result.modelOutputs?.propensityScore ?? "—"}
+                  Risk tier: ${riskTier} (calculated from vehicle and mileage)
                 </p>
               </div>
             </div>
