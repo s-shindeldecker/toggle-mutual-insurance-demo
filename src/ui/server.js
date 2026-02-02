@@ -62,6 +62,19 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  if (req.method === "GET" && req.url?.startsWith("/assets/")) {
+    const assetPath = path.join(
+      __dirname,
+      "..",
+      "..",
+      "assets",
+      path.basename(req.url)
+    );
+    res.writeHead(200, { "Content-Type": "image/png" });
+    res.end(fs.readFileSync(assetPath));
+    return;
+  }
+
   if (req.method === "GET" && req.url === "/app.js") {
     const jsPath = path.join(uiDir, "app.js");
     res.writeHead(200, { "Content-Type": "text/javascript" });
@@ -78,6 +91,11 @@ const server = http.createServer(async (req, res) => {
     } catch (error) {
       respondJson(res, 400, { error: "Invalid request body" });
     }
+    return;
+  }
+
+  if (req.method === "GET" && req.url === "/api/flags/client-id") {
+    respondJson(res, 200, { clientId: process.env.LAUNCHDARKLY_CLIENT_ID || "" });
     return;
   }
 

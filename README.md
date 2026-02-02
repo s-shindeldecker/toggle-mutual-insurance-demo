@@ -39,3 +39,19 @@ Open: `http://localhost:3000`
 Guardrails run before experimentation, and experiments only change the offer
 strategy. Eligibility and event ordering remain consistent, so you can demo
 experimentation without compromising regulated decision logic.
+
+## LaunchDarkly hybrid architecture
+
+Guiding principle: **“The browser may react; the server must decide.”**
+
+Server-side flags (decisions, risk, pricing, eligibility, experiments):
+- `coverage-recommendation-strategy`
+- `instant-quote-enabled`
+- `pricing-engine-enabled`
+
+Client-side flags (presentation only; copy, layout, labels):
+- `mascot-text-box`
+
+Rules:
+- A flag must never be evaluated on both server and client.
+- Decision flags must never be evaluated client-side.

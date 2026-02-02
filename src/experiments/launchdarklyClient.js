@@ -94,10 +94,37 @@ const getBooleanFlag = async (flagKey, context, defaultValue = true) => {
   }
 };
 
+const getStringFlag = async (flagKey, context, defaultValue = "") => {
+  const client = await initializeLaunchDarkly();
+  if (!client) {
+    // Validation-only: log fallback behavior.
+    console.log(
+      `[LD] Flag ${flagKey} fallback=${defaultValue} contextKey=${context.key}`
+    );
+    return defaultValue;
+  }
+
+  try {
+    const value = await client.variation(flagKey, context, defaultValue);
+    // Validation-only: log evaluated value.
+    console.log(
+      `[LD] Flag ${flagKey} value=${value} contextKey=${context.key}`
+    );
+    return typeof value === "string" ? value : defaultValue;
+  } catch (error) {
+    // Validation-only: log fallback on error.
+    console.log(
+      `[LD] Flag ${flagKey} fallback=${defaultValue} contextKey=${context.key}`
+    );
+    return defaultValue;
+  }
+};
+
 module.exports = {
   DEFAULT_STRATEGY,
   FLAG_KEY,
   initializeLaunchDarkly,
   getOfferStrategyAssignment,
   getBooleanFlag,
+  getStringFlag,
 };

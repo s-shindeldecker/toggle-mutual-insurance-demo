@@ -3,26 +3,92 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Insurance Quote Demo</title>
+    <title>Toggle Mutual Insurance</title>
     <style>
       body {
         font-family: system-ui, -apple-system, sans-serif;
-        margin: 24px;
+        margin: 0;
         color: #1f2933;
         background: #f8f9fb;
       }
+      header {
+        background: #0f2d52;
+        color: #fff;
+        padding: 24px 0;
+      }
+      .container {
+        max-width: 980px;
+        margin: 0 auto;
+        padding: 0 24px;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .logo {
+        width: 36px;
+        height: 36px;
+        border-radius: 12px;
+        background: #4cc3ff;
+        display: grid;
+        place-items: center;
+        font-weight: 700;
+        color: #0f2d52;
+      }
       h1 {
         font-size: 22px;
-        margin-bottom: 8px;
+        margin: 0;
+      }
+      .page {
+        padding: 24px 0 48px;
+      }
+      .card {
+        background: #fff;
+        padding: 20px;
+        border-radius: 12px;
+        box-shadow: 0 6px 18px rgba(15, 23, 42, 0.08);
+      }
+      .hero {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: 24px;
+        align-items: center;
+      }
+      .hero h2 {
+        font-size: 28px;
+        margin: 0 0 8px;
+        color: #0f2d52;
+      }
+      .hero img {
+        width: 100%;
+        max-width: 360px;
+      }
+      .hero-visual {
+        text-align: center;
+      }
+      .how-it-works {
+        display: grid;
+        gap: 12px;
+        margin-top: 20px;
+      }
+      .how-it-works li {
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        padding: 12px;
+        border-radius: 10px;
+        list-style: none;
+      }
+      .grid {
+        display: grid;
+        gap: 16px;
+      }
+      .grid.two {
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
       }
       form {
         display: grid;
         gap: 12px;
-        padding: 16px;
-        background: #fff;
-        border-radius: 8px;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
-        max-width: 520px;
       }
       label {
         font-weight: 600;
@@ -30,30 +96,62 @@
         gap: 6px;
       }
       input, select {
-        padding: 8px 10px;
-        border-radius: 6px;
+        padding: 10px 12px;
+        border-radius: 8px;
         border: 1px solid #d9dfe6;
+        font-size: 14px;
       }
       button {
-        padding: 10px 14px;
+        padding: 10px 16px;
         border: none;
-        border-radius: 6px;
+        border-radius: 8px;
         background: #2b6cb0;
         color: #fff;
         font-weight: 600;
         cursor: pointer;
       }
-      main {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-        gap: 16px;
-        margin-top: 20px;
+      button.secondary {
+        background: #e2e8f0;
+        color: #1f2933;
       }
-      section {
-        background: #fff;
-        padding: 16px;
-        border-radius: 8px;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+      button.ghost {
+        background: transparent;
+        color: #2b6cb0;
+      }
+      .stepper {
+        display: flex;
+        gap: 8px;
+        font-size: 13px;
+        margin-bottom: 16px;
+        color: #64748b;
+      }
+      .stepper span.active {
+        color: #0f2d52;
+        font-weight: 600;
+      }
+      .offer-card {
+        background: linear-gradient(135deg, #e0f2ff, #fff);
+        border: 1px solid #cbe4ff;
+        padding: 20px;
+        border-radius: 14px;
+        display: grid;
+        gap: 6px;
+      }
+      .offer-price {
+        font-size: 32px;
+        font-weight: 700;
+        color: #0f2d52;
+      }
+      .badge {
+        background: #0f2d52;
+        color: #fff;
+        padding: 4px 8px;
+        border-radius: 999px;
+        font-size: 12px;
+        display: inline-block;
+      }
+      details {
+        margin-top: 12px;
       }
       pre {
         background: #f3f4f6;
@@ -65,15 +163,27 @@
         color: #6b7280;
         font-size: 14px;
       }
+      .actions {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
     </style>
   </head>
   <body>
-    <h1>Insurance Quote Decision Demo</h1>
-    <p class="muted">
-      Submit a quote input to see eligibility, strategy selection, model outputs,
-      and the final offer.
-    </p>
-    <div id="app"></div>
+    <header>
+      <div class="container brand">
+        <div class="logo">TM</div>
+        <div>
+          <h1>Toggle Mutual Insurance</h1>
+          <p class="muted">Quote & checkout demo experience</p>
+        </div>
+      </div>
+    </header>
+    <div class="container page">
+      <div id="app"></div>
+    </div>
+    <script src="https://unpkg.com/launchdarkly-js-client-sdk@3"></script>
     <script type="module" src="/app.js"></script>
   </body>
 </html>
