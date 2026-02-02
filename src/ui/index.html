@@ -12,60 +12,86 @@
         background: #f8f9fb;
       }
       header {
-        background: #0f2d52;
-        color: #fff;
-        padding: 24px 0;
+        background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+        color: #0f2d52;
+        padding: 12px 0 2px;
       }
       .container {
-        max-width: 980px;
+        max-width: 1360px;
         margin: 0 auto;
-        padding: 0 24px;
+        padding: 0 16px;
       }
       .brand {
         display: flex;
         align-items: center;
-        gap: 12px;
+        justify-content: space-between;
+        gap: 16px;
       }
       .logo {
-        width: 36px;
-        height: 36px;
-        border-radius: 12px;
-        background: #4cc3ff;
-        display: grid;
-        place-items: center;
-        font-weight: 700;
-        color: #0f2d52;
+        width: 240px;
+        height: auto;
+        display: block;
+      }
+      .logo img {
+        width: 100%;
+        height: auto;
+        display: block;
+      }
+      .nav {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        font-size: 14px;
+        color: #ffffff;
+        background: #0f2d52;
+        padding: 8px 12px;
+        border-radius: 10px;
+      }
+      .nav a {
+        color: inherit;
+        text-decoration: none;
+        padding: 6px 8px;
+        border-radius: 6px;
+      }
+      .nav a:hover {
+        background: rgba(255, 255, 255, 0.15);
       }
       h1 {
         font-size: 22px;
         margin: 0;
       }
       .page {
-        padding: 24px 0 48px;
+        padding: 8px 0 32px;
       }
       .card {
         background: #fff;
-        padding: 20px;
+        padding: 24px;
         border-radius: 12px;
         box-shadow: 0 6px 18px rgba(15, 23, 42, 0.08);
       }
       .hero {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-        gap: 24px;
+        gap: 20px;
         align-items: center;
       }
       .hero h2 {
-        font-size: 28px;
+        font-size: 32px;
         margin: 0 0 8px;
         color: #0f2d52;
       }
       .hero img {
         width: 100%;
-        max-width: 360px;
+        max-width: 420px;
       }
       .hero-visual {
         text-align: center;
+      }
+      .mascot-text {
+        font-size: 18px;
+        color: #1f2933;
       }
       .how-it-works {
         display: grid;
@@ -132,13 +158,13 @@
       .offer-card {
         background: linear-gradient(135deg, #e0f2ff, #fff);
         border: 1px solid #cbe4ff;
-        padding: 20px;
+        padding: 24px;
         border-radius: 14px;
         display: grid;
         gap: 6px;
       }
       .offer-price {
-        font-size: 32px;
+        font-size: 36px;
         font-weight: 700;
         color: #0f2d52;
       }
@@ -163,6 +189,10 @@
         color: #6b7280;
         font-size: 14px;
       }
+      .muted.mascot-text {
+        font-size: 18px;
+        color: #1f2933;
+      }
       .actions {
         display: flex;
         gap: 10px;
@@ -173,11 +203,17 @@
   <body>
     <header>
       <div class="container brand">
-        <div class="logo">TM</div>
-        <div>
-          <h1>Toggle Mutual Insurance</h1>
-          <p class="muted">Quote & checkout demo experience</p>
+        <div class="logo">
+          <img src="/assets/tomu-logo.png" alt="Toggle Mutual logo" />
         </div>
+        <nav class="nav" aria-label="Primary">
+          <a href="#">Get a quote</a>
+          <a href="#">Insurance & more</a>
+          <a href="#">Resources</a>
+          <a href="#">Claims</a>
+          <a href="#">Help & support</a>
+          <a href="#">Find an agent</a>
+        </nav>
       </div>
     </header>
     <div class="container page">

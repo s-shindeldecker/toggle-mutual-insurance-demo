@@ -163,7 +163,7 @@ const App = () => {
             />
             ${ldReady &&
             mascotText &&
-            html`<p className="muted">${mascotText}</p>`}
+            html`<p className="muted mascot-text">${mascotText}</p>`}
           </div>
           <div>
             <h3>How it works</h3>
