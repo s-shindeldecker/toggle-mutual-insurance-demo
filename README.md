@@ -13,18 +13,19 @@ node src/ui/server.js
 Optional environment variable:
 
 - `LAUNCHDARKLY_SDK_KEY` to enable LaunchDarkly flag evaluation.
+- `LAUNCHDARKLY_CLIENT_ID` to enable client-side UI flag evaluation.
 
 Open: `http://localhost:3000`
 
 ## Demo Flow
 
-1) Enter a state, age, and risk proxy (0-100).
-2) Run the quote decision.
+1) Enter state, age, vehicle type, and annual mileage band.
+2) Get a quote, then proceed through summary, checkout, confirmation.
 3) Point out:
    - Eligibility & guardrails (why the quote can/can’t proceed)
    - Experiment strategy selection (baseline vs optimized)
    - Offer result (price + coverage tier)
-   - Model outputs (risk/price/propensity)
+   - Decision summary (risk tier, strategy rationale)
 
 ## Demo Scenarios
 
@@ -33,6 +34,7 @@ Open: `http://localhost:3000`
   between `baseline` and `optimized` to show offer changes.
 - **Guardrail blocking instant quote**: set `instant-quote-enabled=false` to
   show ineligibility with no offer.
+- **Presentation copy**: change `mascot-text-box` to update the homepage label.
 
 ## Why this is safe experimentation
 
