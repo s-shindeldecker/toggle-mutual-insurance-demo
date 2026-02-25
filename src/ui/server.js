@@ -28,32 +28,48 @@ const readJsonBody = (req) =>
     });
   });
 
-const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
-
-const buildQuoteInput = ({ state, age, vehicleType, annualMileageBand }) => {
-  const mileageBand = annualMileageBand || "5k-10k";
-  const annualMileage =
-    mileageBand === "under-5k"
-      ? 4000
-      : mileageBand === "over-10k"
-        ? 15000
-        : 8000;
-
-  return {
-    applicant: {
-      age: Number(age) || 0,
-      state: state || "unknown",
-    },
-    vehicle: {
-      year: 2018,
-      type: vehicleType || "sedan",
-      annualMileage,
-    },
-    customer: {
-      isReturning: false,
-    },
-  };
-};
+const buildQuoteInput = ({
+  address,
+  fullName,
+  age,
+  maritalStatus,
+  numberOfKids,
+  sessionKey,
+  userKey,
+  vehicleYear,
+  vehicleMake,
+  vehicleModel,
+  vehicleVin,
+  vehicleOdometer,
+  vehicleAnnualMileage,
+}) => ({
+  address: {
+    fullAddress: address || "unknown",
+  },
+  applicant: {
+    fullName: fullName || "Unknown",
+    age: Number(age) || 0,
+    maritalStatus: maritalStatus || "unknown",
+    numberOfKids: Number(numberOfKids) || 0,
+  },
+  user: {
+    key: userKey || null,
+  },
+  session: {
+    key: sessionKey || null,
+  },
+  vehicle: {
+    year: Number(vehicleYear) || 2018,
+    make: vehicleMake || "unknown",
+    model: vehicleModel || "unknown",
+    vin: vehicleVin || "",
+    odometer: Number(vehicleOdometer) || 0,
+    annualMileage: Number(vehicleAnnualMileage) || 0,
+  },
+  customer: {
+    isReturning: false,
+  },
+});
 
 const respondJson = (res, statusCode, payload) => {
   res.writeHead(statusCode, { "Content-Type": "application/json" });

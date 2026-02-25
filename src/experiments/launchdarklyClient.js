@@ -43,7 +43,7 @@ const getOfferStrategyAssignment = async (context) => {
   if (!client) {
     // Validation-only: log fallback behavior.
     console.log(
-      `[LD] Flag ${FLAG_KEY} fallback=${DEFAULT_STRATEGY} contextKey=${context.key}`
+      `[LD] Flag ${FLAG_KEY} fallback=${DEFAULT_STRATEGY} sessionKey=${context.session?.key || "unknown"}`
     );
     return DEFAULT_STRATEGY;
   }
@@ -52,7 +52,7 @@ const getOfferStrategyAssignment = async (context) => {
     const variant = await client.variation(FLAG_KEY, context, DEFAULT_STRATEGY);
     // Validation-only: log evaluated value.
     console.log(
-      `[LD] Flag ${FLAG_KEY} value=${variant} contextKey=${context.key}`
+      `[LD] Flag ${FLAG_KEY} value=${variant} sessionKey=${context.session?.key || "unknown"}`
     );
     if (variant === "baseline" || variant === "optimized") {
       return variant;
@@ -60,7 +60,7 @@ const getOfferStrategyAssignment = async (context) => {
   } catch (error) {
     // Validation-only: log fallback on error.
     console.log(
-      `[LD] Flag ${FLAG_KEY} fallback=${DEFAULT_STRATEGY} contextKey=${context.key}`
+      `[LD] Flag ${FLAG_KEY} fallback=${DEFAULT_STRATEGY} sessionKey=${context.session?.key || "unknown"}`
     );
     return DEFAULT_STRATEGY;
   }
@@ -73,7 +73,7 @@ const getBooleanFlag = async (flagKey, context, defaultValue = true) => {
   if (!client) {
     // Validation-only: log fallback behavior.
     console.log(
-      `[LD] Flag ${flagKey} fallback=${defaultValue} contextKey=${context.key}`
+      `[LD] Flag ${flagKey} fallback=${defaultValue} sessionKey=${context.session?.key || "unknown"}`
     );
     return defaultValue;
   }
@@ -82,13 +82,13 @@ const getBooleanFlag = async (flagKey, context, defaultValue = true) => {
     const value = await client.variation(flagKey, context, defaultValue);
     // Validation-only: log evaluated value.
     console.log(
-      `[LD] Flag ${flagKey} value=${value} contextKey=${context.key}`
+      `[LD] Flag ${flagKey} value=${value} sessionKey=${context.session?.key || "unknown"}`
     );
     return typeof value === "boolean" ? value : defaultValue;
   } catch (error) {
     // Validation-only: log fallback on error.
     console.log(
-      `[LD] Flag ${flagKey} fallback=${defaultValue} contextKey=${context.key}`
+      `[LD] Flag ${flagKey} fallback=${defaultValue} sessionKey=${context.session?.key || "unknown"}`
     );
     return defaultValue;
   }
@@ -99,7 +99,7 @@ const getStringFlag = async (flagKey, context, defaultValue = "") => {
   if (!client) {
     // Validation-only: log fallback behavior.
     console.log(
-      `[LD] Flag ${flagKey} fallback=${defaultValue} contextKey=${context.key}`
+      `[LD] Flag ${flagKey} fallback=${defaultValue} sessionKey=${context.session?.key || "unknown"}`
     );
     return defaultValue;
   }
@@ -108,13 +108,13 @@ const getStringFlag = async (flagKey, context, defaultValue = "") => {
     const value = await client.variation(flagKey, context, defaultValue);
     // Validation-only: log evaluated value.
     console.log(
-      `[LD] Flag ${flagKey} value=${value} contextKey=${context.key}`
+      `[LD] Flag ${flagKey} value=${value} sessionKey=${context.session?.key || "unknown"}`
     );
     return typeof value === "string" ? value : defaultValue;
   } catch (error) {
     // Validation-only: log fallback on error.
     console.log(
-      `[LD] Flag ${flagKey} fallback=${defaultValue} contextKey=${context.key}`
+      `[LD] Flag ${flagKey} fallback=${defaultValue} sessionKey=${context.session?.key || "unknown"}`
     );
     return defaultValue;
   }

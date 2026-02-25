@@ -4,13 +4,63 @@ import htm from "https://esm.sh/htm@3";
 
 const html = htm.bind(React.createElement);
 
+const presets = [
+  {
+    id: "urban_commuter",
+    label: "Urban commuter",
+    data: {
+      address: "221 Market St, San Francisco, CA 94105",
+      fullName: "Alex Rivera",
+      age: 29,
+      maritalStatus: "single",
+      numberOfKids: 0,
+      vehicleYear: 2019,
+      vehicleMake: "Honda",
+      vehicleModel: "Civic",
+      vehicleVin: "1HGCM82633A004352",
+      vehicleOdometer: 42000,
+      vehicleAnnualMileage: 9000,
+    },
+  },
+  {
+    id: "suburban_family",
+    label: "Suburban family",
+    data: {
+      address: "875 Maple Ave, Naperville, IL 60540",
+      fullName: "Jordan Lee",
+      age: 41,
+      maritalStatus: "married",
+      numberOfKids: 2,
+      vehicleYear: 2017,
+      vehicleMake: "Toyota",
+      vehicleModel: "Highlander",
+      vehicleVin: "5TDDZ3DC7HS123456",
+      vehicleOdometer: 68000,
+      vehicleAnnualMileage: 12000,
+    },
+  },
+  {
+    id: "rural_truck",
+    label: "Rural truck owner",
+    data: {
+      address: "104 County Road 12, Boise, ID 83702",
+      fullName: "Taylor Morgan",
+      age: 52,
+      maritalStatus: "married",
+      numberOfKids: 1,
+      vehicleYear: 2015,
+      vehicleMake: "Ford",
+      vehicleModel: "F-150",
+      vehicleVin: "1FTEW1EP1FFA12345",
+      vehicleOdometer: 92000,
+      vehicleAnnualMileage: 15000,
+    },
+  },
+];
+
 const App = () => {
-  const [form, setForm] = React.useState({
-    state: "CA",
-    age: 32,
-    vehicleType: "sedan",
-    annualMileageBand: "5k-10k",
-  });
+  const [selectedPreset, setSelectedPreset] = React.useState(presets[0].id);
+  const [form, setForm] = React.useState(presets[0].data);
   const [step, setStep] = React.useState("home");
   const [result, setResult] = React.useState(null);
   const [loading, setLoading] = React.useState(false);
@@ -23,6 +73,118 @@ const App = () => {
   const [ldReady, setLdReady] = React.useState(false);
   const [mascotText, setMascotText] = React.useState(null);
   const ldClientRef = React.useRef(null);
+  const sessionKeyRef = React.useRef(null);
+  const userKeyRef = React.useRef(null);
+
+  const generateSessionKey = () =>
+    `sess_${Math.random().toString(36).slice(2, 10)}`;
+  const generateUserKey = () =>
+    `user_${Math.random().toString(36).slice(2, 10)}`;
+
+  const hashString = (value) => {
+    let hash = 0;
+    for (let i = 0; i < value.length; i += 1) {
+      hash = (hash * 31 + value.charCodeAt(i)) % 1000000007;
+    }
+    return `loc_${Math.abs(hash).toString(36)}`;
+  };
+
+  const parseAddress = (address) => {
+    if (!address) {
+      return { street: "", city: "", state: "", zip: "" };
+    }
+    const match = address.match(/^(.*),\s*([^,]+),\s*([A-Za-z]{2})\s*(\d{5})?$/);
+    if (!match) {
+      return { street: address, city: "", state: "", zip: "" };
+    }
+    return {
+      street: match[1].trim(),
+      city: match[2].trim(),
+      state: match[3].toUpperCase(),
+      zip: match[4] || "",
+    };
+  };
+
+  const buildClientContext = (data, stage) => {
+    const sessionContext = {
+      kind: "session",
+      key: sessionKeyRef.current,
+    };
+
+    if (stage === "session") {
+      return sessionContext;
+    }
+
+    const addressParts = parseAddress(data.address || "");
+    const locationKey = data.address ? hashString(data.address) : "loc_unknown";
+    const locationContext = {
+      key: locationKey,
+      address: data.address || "unknown",
+      street: addressParts.street,
+      city: addressParts.city,
+      state: addressParts.state,
+      zip: addressParts.zip,
+    };
+
+    const context = {
+      kind: "multi",
+      session: sessionContext,
+      location: locationContext,
+    };
+
+    if (userKeyRef.current) {
+      context.user = {
+        key: userKeyRef.current,
+        name: data.fullName,
+        age: Number(data.age) || 0,
+        maritalStatus: data.maritalStatus,
+        numberOfKids: Number(data.numberOfKids) || 0,
+      };
+    }
+
+    if (stage !== "vehicle") {
+      return context;
+    }
+
+    const vehicleKey = data.vehicleVin
+      ? data.vehicleVin
+      : `${data.vehicleYear || "unknown"}-${data.vehicleMake || "unknown"}-${
+          data.vehicleModel || "unknown"
+        }`;
+    context.vehicle = {
+      key: vehicleKey,
+      year: Number(data.vehicleYear) || 0,
+      make: data.vehicleMake || "unknown",
+      model: data.vehicleModel || "unknown",
+      vinProvided: Boolean(data.vehicleVin),
+      odometer: Number(data.vehicleOdometer) || 0,
+      annualMileage: Number(data.vehicleAnnualMileage) || 0,
+    };
+
+    return context;
+  };
+
+  const identifyClientContext = (context) => {
+    const client = ldClientRef.current;
+    if (!client) {
+      return;
+    }
+    client.identify(context);
+  };
+
+  const resetAnonymousSession = () => {
+    sessionKeyRef.current = generateSessionKey();
+    userKeyRef.current = null;
+    setSelectedPreset(presets[0].id);
+    setForm(presets[0].data);
+    setCheckout({ fullName: "", email: "", address: "" });
+    setResult(null);
+    setError("");
+    setStep("home");
+    if (ldReady) {
+      identifyClientContext(buildClientContext({}, "session"));
+    }
+  };
 
   React.useEffect(() => {
     const loadMascotText = async () => {
@@ -38,10 +200,12 @@ const App = () => {
 
         // Client-side LaunchDarkly is for presentation-only flags. Never evaluate decision flags here.
         if (!ldClientRef.current) {
-          ldClientRef.current = window.LDClient?.initialize(payload.clientId, {
-            kind: "user",
-            key: "ui_home",
-          });
+          sessionKeyRef.current = generateSessionKey();
+          const context = buildClientContext(form, "session");
+          ldClientRef.current = window.LDClient?.initialize(
+            payload.clientId,
+            context
+          );
         }
         const client = ldClientRef.current;
         if (!client) {
@@ -71,12 +235,38 @@ const App = () => {
     };
   }, []);
 
+  React.useEffect(() => {
+    const handleHomeClick = (event) => {
+      const target = event.target.closest("#home-logo, #home-link");
+      if (!target) {
+        return;
+      }
+      event.preventDefault();
+      resetAnonymousSession();
+    };
+
+    document.addEventListener("click", handleHomeClick);
+    return () => {
+      document.removeEventListener("click", handleHomeClick);
+    };
+  }, [ldReady]);
+
   const updateField = (event) => {
     const { name, value } = event.target;
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
-  const submit = async (event) => {
+  const applyPreset = (event) => {
+    const presetId = event.target.value;
+    const preset = presets.find((item) => item.id === presetId);
+    if (!preset) {
+      return;
+    }
+    setSelectedPreset(presetId);
+    setForm(preset.data);
+  };
+
+  const submitQuote = async (event) => {
     event.preventDefault();
     setLoading(true);
     setError("");
@@ -86,7 +276,11 @@ const App = () => {
       const response = await fetch("/api/quote", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          ...form,
+          sessionKey: sessionKeyRef.current,
+          userKey: userKeyRef.current,
+        }),
       });
 
       if (!response.ok) {
@@ -109,7 +303,7 @@ const App = () => {
   };
 
   const startOver = () => {
-    setStep("input");
+    setStep("home");
     setResult(null);
     setError("");
   };
@@ -125,15 +319,23 @@ const App = () => {
         result.decisionSummary.riskTier.slice(1)
       : "—";
 
+  const stepOrder = [
+    { id: "intake-address", label: "1. Address" },
+    { id: "intake-personal", label: "2. Personal" },
+    { id: "intake-vehicle", label: "3. Vehicle" },
+    { id: "summary", label: "4. Summary" },
+    { id: "checkout", label: "5. Checkout" },
+    { id: "confirmation", label: "6. Confirm" },
+  ];
+
   const Stepper = () => html`
     <div className="stepper">
-      <span className=${step === "input" ? "active" : ""}>1. Quote</span>
-      <span>→</span>
-      <span className=${step === "summary" ? "active" : ""}>2. Summary</span>
-      <span>→</span>
-      <span className=${step === "checkout" ? "active" : ""}>3. Checkout</span>
-      <span>→</span>
-      <span className=${step === "confirmation" ? "active" : ""}>4. Confirm</span>
+      ${stepOrder.map((item, index) =>
+        html`<span className=${step === item.id ? "active" : ""}>
+            ${item.label}
+          </span>
+          ${index < stepOrder.length - 1 ? html`<span>→</span>` : ""}`
+      )}
     </div>
   `;
 
@@ -151,7 +353,7 @@ const App = () => {
               commit.
             </p>
             <div className="actions">
-              <button type="button" onClick=${() => setStep("input")}>
+              <button type="button" onClick=${() => setStep("intake-address")}>
                 Get a quote
               </button>
             </div>
@@ -176,20 +378,70 @@ const App = () => {
         </div>
       `}
 
-      ${step === "input" &&
+      ${step === "intake-address" &&
       html`
         <div className="card">
-          <h2>Get your quote</h2>
-          <p className="muted">Provide a few details to generate an instant quote.</p>
-          <form onSubmit=${submit}>
+          <h2>Home address</h2>
+          <p className="muted">
+            Start with a full address so we can estimate location-based risk.
+          </p>
+          <form onSubmit=${(event) => {
+            event.preventDefault();
+            setStep("intake-personal");
+            if (ldReady) {
+              identifyClientContext(buildClientContext(form, "address"));
+            }
+          }}>
             <div className="grid two">
               <label>
-                State
+                Demo profile
+                <select name="preset" value=${selectedPreset} onInput=${applyPreset}>
+                  ${presets.map(
+                    (preset) =>
+                      html`<option value=${preset.id}>${preset.label}</option>`
+                  )}
+                </select>
+              </label>
+              <label>
+                Address
                 <input
-                  name="state"
-                  value=${form.state}
+                  name="address"
+                  value=${form.address}
                   onInput=${updateField}
-                  placeholder="CA"
+                  placeholder="123 Main St, City, ST 00000"
+                />
+              </label>
+            </div>
+            <div className="actions">
+              <button type="submit">Next: Personal</button>
+            </div>
+          </form>
+        </div>
+      `}
+
+      ${step === "intake-personal" &&
+      html`
+        <div className="card">
+          <h2>Personal information</h2>
+          <p className="muted">We use this to estimate driver risk.</p>
+          <form onSubmit=${(event) => {
+            event.preventDefault();
+            setStep("intake-vehicle");
+            if (ldReady) {
+              if (!userKeyRef.current) {
+                userKeyRef.current = generateUserKey();
+              }
+              identifyClientContext(buildClientContext(form, "personal"));
+            }
+          }}>
+            <div className="grid two">
+              <label>
+                Full name
+                <input
+                  name="fullName"
+                  value=${form.fullName}
+                  onInput=${updateField}
+                  placeholder="Taylor Morgan"
                 />
               </label>
               <label>
@@ -204,32 +456,117 @@ const App = () => {
                 />
               </label>
               <label>
-                Vehicle type
+                Marital status
                 <select
-                  name="vehicleType"
-                  value=${form.vehicleType}
+                  name="maritalStatus"
+                  value=${form.maritalStatus}
                   onInput=${updateField}
                 >
-                  <option value="sedan">Sedan</option>
-                  <option value="suv">SUV</option>
-                  <option value="truck">Truck</option>
-                  <option value="sports">Sports car</option>
+                  <option value="single">Single</option>
+                  <option value="married">Married</option>
+                  <option value="other">Other</option>
                 </select>
               </label>
               <label>
-                Annual mileage
-                <select
-                  name="annualMileageBand"
-                  value=${form.annualMileageBand}
+                Number of kids
+                <input
+                  name="numberOfKids"
+                  type="number"
+                  min="0"
+                  max="6"
+                  value=${form.numberOfKids}
                   onInput=${updateField}
-                >
-                  <option value="under-5k">Under 5k</option>
-                  <option value="5k-10k">5k–10k</option>
-                  <option value="over-10k">Over 10k</option>
-                </select>
+                />
               </label>
             </div>
             <div className="actions">
+              <button type="button" className="secondary" onClick=${() => setStep("intake-address")}>
+                Back
+              </button>
+              <button type="submit">Next: Vehicle</button>
+            </div>
+          </form>
+        </div>
+      `}
+
+      ${step === "intake-vehicle" &&
+      html`
+        <div className="card">
+          <h2>Vehicle details</h2>
+          <p className="muted">Vehicle data influences pricing and coverage.</p>
+          <form onSubmit=${(event) => {
+            if (ldReady) {
+              if (!userKeyRef.current) {
+                userKeyRef.current = generateUserKey();
+              }
+              identifyClientContext(buildClientContext(form, "vehicle"));
+            }
+            submitQuote(event);
+          }}>
+            <div className="grid two">
+              <label>
+                Year
+                <input
+                  name="vehicleYear"
+                  type="number"
+                  min="1995"
+                  max="2025"
+                  value=${form.vehicleYear}
+                  onInput=${updateField}
+                />
+              </label>
+              <label>
+                Make
+                <input
+                  name="vehicleMake"
+                  value=${form.vehicleMake}
+                  onInput=${updateField}
+                  placeholder="Toyota"
+                />
+              </label>
+              <label>
+                Model
+                <input
+                  name="vehicleModel"
+                  value=${form.vehicleModel}
+                  onInput=${updateField}
+                  placeholder="Highlander"
+                />
+              </label>
+              <label>
+                VIN
+                <input
+                  name="vehicleVin"
+                  value=${form.vehicleVin}
+                  onInput=${updateField}
+                  placeholder="1HGCM82633A004352"
+                />
+              </label>
+              <label>
+                Odometer (miles)
+                <input
+                  name="vehicleOdometer"
+                  type="number"
+                  min="0"
+                  value=${form.vehicleOdometer}
+                  onInput=${updateField}
+                />
+              </label>
+              <label>
+                Annual mileage
+                <input
+                  name="vehicleAnnualMileage"
+                  type="number"
+                  min="0"
+                  value=${form.vehicleAnnualMileage}
+                  onInput=${updateField}
+                />
+              </label>
+            </div>
+            <div className="actions">
+              <button type="button" className="secondary" onClick=${() => setStep("intake-personal")}>
+                Back
+              </button>
               <button type="submit" disabled=${loading}>
                 ${loading ? "Running..." : "Get quote"}
               </button>
@@ -254,28 +591,18 @@ const App = () => {
 
           <div className="grid two">
             <div>
-              <h3>Eligibility & guardrails</h3>
+              <h3>Coverage highlights</h3>
               <p className="muted">
-                ${decision?.eligibility?.eligible
-                  ? "Eligible for an instant quote."
-                  : "Ineligible for instant quote."}
+                BI liability: ${offer?.limits?.bodilyInjury || "—"}
               </p>
               <p className="muted">
-                Reasons: ${decision?.eligibility?.reasons?.join(", ") || "None"}
+                Property damage: ${offer?.limits?.propertyDamage || "—"}
               </p>
               <p className="muted">
-                Guardrails applied: ${guardrails?.applied?.join(", ") || "None"}
-              </p>
-            </div>
-            <div>
-              <h3>Strategy selection</h3>
-              <p className="muted">
-                Strategy: ${decision?.offerStrategy || "baseline"}
+                Medical payments: ${offer?.limits?.medicalPayments || "—"}
               </p>
               <p className="muted">
-                Experiment influenced: ${
-                  decision?.experimentationInfluenced ? "Yes" : "No"
-                }
+                Collision deductible: ${offer?.limits?.collisionDeductible || "—"}
               </p>
             </div>
           </div>
@@ -289,22 +616,30 @@ const App = () => {
             <div className="grid two">
               <div>
                 <h4>Decision details</h4>
+                <p className="muted">Risk score: ${decision?.modelScores?.riskScore ?? "—"}</p>
                 <p className="muted">
-                  Upsell decision: ${
-                    decision?.strategyDecision?.decision || "Not applicable"
-                  }
+                  Price factor: ${decision?.modelScores?.priceFactor ?? "—"}
                 </p>
                 <p className="muted">
-                  Reason: ${decision?.strategyDecision?.reason || "—"}
+                  Propensity score: ${decision?.modelScores?.propensityScore ?? "—"}
                 </p>
                 <p className="muted">
-                  Propensity: ${
-                    decision?.strategyDecision?.propensityScore ?? "—"
-                  } / threshold ${decision?.strategyDecision?.propensityThreshold ?? "—"}
+                  Risk tier: ${riskTier} (calculated from address, profile, and vehicle)
                 </p>
-                <p className="muted">
-                  Risk tier: ${riskTier} (calculated from vehicle and mileage)
-                </p>
+                ${decision?.modelsScored?.length
+                  ? html`<p className="muted">
+                      Models scored: ${decision.modelsScored
+                        .map((item) => `${item.model} (${item.variant})`)
+                        .join(", ")}
+                    </p>`
+                  : ""}
+                ${decision?.riskFactors?.length
+                  ? html`<ul className="muted">
+                      ${decision.riskFactors.map(
+                        (factor) => html`<li>${factor}</li>`
+                      )}
+                    </ul>`
+                  : ""}
               </div>
             </div>
           </details>

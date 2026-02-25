@@ -14,6 +14,12 @@ const constructOffer = (modelOutputs, offerStrategy = "baseline") => {
     price: Number((basePremium * priceFactor).toFixed(2)),
     currency: "USD",
     coverageTier,
+    limits: {
+      bodilyInjury: "100k/300k",
+      propertyDamage: "100k",
+      medicalPayments: "5k",
+      collisionDeductible: "$500",
+    },
   };
 };
 

@@ -1,5 +1,6 @@
-const { eventEmitter } = require("../analytics/eventEmitter");
+const crypto = require("crypto");
 const { AnalyticsEvents } = require("../analytics/events");
+const { trackEvent } = require("../analytics/tracker");
 const { evaluateFakeModels } = require("../models/fake");
 const { Quote } = require("./quote");
 const {
@@ -9,14 +10,11 @@ const {
 const {
   getOfferStrategyAssignment,
   getBooleanFlag,
+  getStringFlag,
 } = require("../experiments/launchdarklyClient");
 
 const initializeQuote = (input) => {
   const quote = new Quote(input);
-  eventEmitter.emit(AnalyticsEvents.QUOTE_STARTED, {
-    quoteId: quote.id,
-    status: quote.status,
-  });
   return quote;
 };
 
@@ -31,9 +29,32 @@ const evaluateEligibility = (quote) => {
   };
 };
 
-const callFakeModels = (quote) => {
-  quote.modelOutputs = evaluateFakeModels(quote.input);
+const getRiskModelVariant = async (quote) => {
+  const context = buildLaunchDarklyContext(quote, { includeRiskTier: false });
+  const variant = await getStringFlag("risk-model-variant", context, "baseline");
+  return variant === "alternate" ? "alternate" : "baseline";
+};
+
+const getPricingModelVariant = async (quote) => {
+  const context = buildLaunchDarklyContext(quote, { includeRiskTier: false });
+  const variant = await getStringFlag(
+    "pricing-model-variant",
+    context,
+    "baseline"
+  );
+  return variant === "alternate" ? "alternate" : "baseline";
+};
+
+const callFakeModels = async (quote) => {
+  const riskModelVariant = await getRiskModelVariant(quote);
+  const pricingModelVariant = await getPricingModelVariant(quote);
+  quote.modelOutputs = evaluateFakeModels(
+    quote.input,
+    riskModelVariant,
+    pricingModelVariant
+  );
   quote.updateStatus("models_evaluated");
+  return { riskModelVariant, pricingModelVariant };
 };
 
 const getRiskTier = (riskScore) => {
@@ -46,18 +67,134 @@ const getRiskTier = (riskScore) => {
   return "low";
 };
 
-const buildLaunchDarklyContext = (quote) => {
-  const state = quote.input.applicant?.state ?? "unknown";
-  const isReturningCustomer = quote.input.customer?.isReturning ?? false;
-  const riskScore = quote.modelOutputs?.riskScore ?? 0;
+const buildRiskFactors = (quote) => {
+  const factors = [];
+  const age = quote.input.applicant?.age ?? 0;
+  const maritalStatus = quote.input.applicant?.maritalStatus ?? "unknown";
+  const numberOfKids = quote.input.applicant?.numberOfKids ?? 0;
+  const address = quote.input.address?.fullAddress ?? "";
+  const vehicle = quote.input.vehicle ?? {};
 
+  if (age && age < 25) {
+    factors.push("Young driver (under 25)");
+  } else if (age && age >= 50) {
+    factors.push("Experienced driver (50+)");
+  }
+
+  if (maritalStatus === "married") {
+    factors.push("Married household");
+  } else if (maritalStatus === "single") {
+    factors.push("Single household");
+  }
+
+  if (numberOfKids > 0) {
+    factors.push(`${numberOfKids} dependent${numberOfKids > 1 ? "s" : ""}`);
+  }
+
+  if (address) {
+    factors.push("Location-based rating applied");
+  }
+
+  if (vehicle.year && vehicle.year < 2010) {
+    factors.push("Older vehicle (pre-2010)");
+  } else if (vehicle.year && vehicle.year >= 2020) {
+    factors.push("Newer vehicle (2020+)");
+  }
+
+  if (vehicle.odometer && vehicle.odometer > 100000) {
+    factors.push("High odometer reading");
+  }
+
+  if (vehicle.annualMileage && vehicle.annualMileage > 15000) {
+    factors.push("High annual mileage");
+  }
+
+  if (!vehicle.vin) {
+    factors.push("VIN not provided");
+  }
+
+  if (vehicle.make && vehicle.model) {
+    factors.push(`${vehicle.make} ${vehicle.model}`);
+  }
+
+  return factors;
+};
+
+const parseAddress = (address) => {
+  if (!address) {
+    return { street: "", city: "", state: "", zip: "" };
+  }
+  const match = address.match(/^(.*),\s*([^,]+),\s*([A-Za-z]{2})\s*(\d{5})?$/);
+  if (!match) {
+    return { street: address, city: "", state: "", zip: "" };
+  }
   return {
-    kind: "user",
-    key: quote.id,
-    state,
-    riskTier: getRiskTier(riskScore),
-    isReturningCustomer,
+    street: match[1].trim(),
+    city: match[2].trim(),
+    state: match[3].toUpperCase(),
+    zip: match[4] || "",
   };
+};
+
+const getLocationKey = (address) => {
+  if (!address) {
+    return "loc_unknown";
+  }
+  const hash = crypto.createHash("sha256").update(address).digest("hex");
+  return `loc_${hash.slice(0, 12)}`;
+};
+
+const buildLaunchDarklyContext = (quote, options = {}) => {
+  const address = quote.input.address?.fullAddress ?? "";
+  const addressParts = parseAddress(address);
+  const state = addressParts.state || "unknown";
+  const isReturningCustomer = quote.input.customer?.isReturning ?? false;
+  const includeRiskTier = options.includeRiskTier !== false;
+  const riskScore = quote.modelOutputs?.riskScore ?? 0;
+  const vehicle = quote.input.vehicle ?? {};
+  const sessionKey = quote.input.session?.key || quote.id;
+  const userKey = quote.input.user?.key || "user_unknown";
+
+  const context = {
+    kind: "multi",
+    session: {
+      key: sessionKey,
+    },
+    user: {
+      key: userKey,
+      name: quote.input.applicant?.fullName ?? "Unknown",
+      age: quote.input.applicant?.age ?? 0,
+      maritalStatus: quote.input.applicant?.maritalStatus ?? "unknown",
+      numberOfKids: quote.input.applicant?.numberOfKids ?? 0,
+      isReturningCustomer,
+      quoteId: quote.id,
+    },
+    vehicle: {
+      key:
+        vehicle.vin ||
+        `${vehicle.year || "unknown"}-${vehicle.make || "unknown"}-${
+          vehicle.model || "unknown"
+        }`,
+      year: vehicle.year ?? 0,
+      make: vehicle.make ?? "unknown",
+      model: vehicle.model ?? "unknown",
+      odometer: vehicle.odometer ?? 0,
+      annualMileage: vehicle.annualMileage ?? 0,
+      vinProvided: Boolean(vehicle.vin),
+    },
+    location: {
+      key: getLocationKey(address),
+      address: address || "unknown",
+      street: addressParts.street,
+      city: addressParts.city,
+      state,
+      zip: addressParts.zip,
+    },
+  };
+  if (includeRiskTier) {
+    context.user.riskTier = getRiskTier(riskScore);
+  }
+  return context;
 };
 
 const applyGuardrails = async (quote, eligibility) => {
@@ -105,12 +242,6 @@ const applyGuardrails = async (quote, eligibility) => {
 const finalizeEligibility = (quote, eligibility) => {
   quote.eligibility = eligibility;
   quote.updateStatus("eligibility_evaluated");
-
-  eventEmitter.emit(AnalyticsEvents.QUOTE_ELIGIBILITY_EVALUATED, {
-    quoteId: quote.id,
-    eligible: eligibility.eligible,
-    reasons: eligibility.reasons,
-  });
 };
 
 const selectOfferStrategy = async (quote, forcedOfferStrategy) => {
@@ -134,13 +265,6 @@ const constructOfferStep = (quote, offerStrategy) => {
 
   quote.offer = constructOffer(quote.modelOutputs, offerStrategy);
   quote.updateStatus("offer_constructed");
-
-  eventEmitter.emit(AnalyticsEvents.QUOTE_OFFER_CONSTRUCTED, {
-    quoteId: quote.id,
-    offerStrategy,
-    coverageTier: quote.offer.coverageTier,
-    price: quote.offer.price,
-  });
 };
 
 const completeQuote = (quote) => {
@@ -154,15 +278,32 @@ const completeQuote = (quote) => {
   if (!completed) {
     payload.completionReason = "ineligible";
   }
-  eventEmitter.emit(AnalyticsEvents.QUOTE_COMPLETED, payload);
 };
 
 const runQuoteDecisionFlow = async (input) => {
   const quote = initializeQuote(input);
-  callFakeModels(quote);
+  const getContext = () => buildLaunchDarklyContext(quote);
+  trackEvent(
+    AnalyticsEvents.QUOTE_STARTED,
+    {
+      quoteId: quote.id,
+      status: quote.status,
+    },
+    getContext()
+  );
+  const { riskModelVariant, pricingModelVariant } = await callFakeModels(quote);
   const baseEligibility = evaluateEligibility(quote);
   const guardrails = await applyGuardrails(quote, baseEligibility);
   finalizeEligibility(quote, guardrails.eligibility);
+  trackEvent(
+    AnalyticsEvents.QUOTE_ELIGIBILITY_EVALUATED,
+    {
+      quoteId: quote.id,
+      eligible: guardrails.eligibility.eligible,
+      reasons: guardrails.eligibility.reasons,
+    },
+    getContext()
+  );
   const offerStrategy = await selectOfferStrategy(
     quote,
     guardrails.forcedOfferStrategy
@@ -174,7 +315,6 @@ const runQuoteDecisionFlow = async (input) => {
     },
     guardrails: guardrails.guardrails,
     offerStrategy,
-    experimentationInfluenced: offerStrategy !== "baseline",
   };
   if (offerStrategy === "optimized") {
     const propensityScore = quote.modelOutputs?.propensityScore ?? 0;
@@ -189,9 +329,46 @@ const runQuoteDecisionFlow = async (input) => {
     };
   }
   decisionSummary.riskTier = getRiskTier(quote.modelOutputs?.riskScore ?? 0);
+  decisionSummary.modelsScored = [
+    { model: "risk", variant: riskModelVariant },
+    { model: "price", variant: pricingModelVariant },
+    { model: "propensity", variant: "baseline" },
+  ];
+  decisionSummary.modelScores = {
+    riskScore: quote.modelOutputs?.riskScore ?? 0,
+    priceFactor: quote.modelOutputs?.priceFactor ?? 0,
+    propensityScore: quote.modelOutputs?.propensityScore ?? 0,
+  };
+  decisionSummary.riskFactors = buildRiskFactors(quote);
   quote.decisionSummary = decisionSummary;
   constructOfferStep(quote, offerStrategy);
+  if (quote.offer) {
+    trackEvent(
+      AnalyticsEvents.QUOTE_OFFER_CONSTRUCTED,
+      {
+        quoteId: quote.id,
+        offerStrategy,
+        coverageTier: quote.offer.coverageTier,
+        price: quote.offer.price,
+      },
+      getContext()
+    );
+  }
   completeQuote(quote);
+  const completed = quote.eligibility?.eligible ?? false;
+  const completionPayload = {
+    quoteId: quote.id,
+    status: quote.status,
+    completed,
+  };
+  if (!completed) {
+    completionPayload.completionReason = "ineligible";
+  }
+  trackEvent(
+    AnalyticsEvents.QUOTE_COMPLETED,
+    completionPayload,
+    getContext()
+  );
   return quote;
 };
 

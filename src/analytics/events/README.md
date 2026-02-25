@@ -1,6 +1,7 @@
 # Analytics Event Definitions
 
 Centralized event names and payload shape references (definitions only).
+For the full taxonomy and extension rules, see `docs/analytics-events.md`.
 
 ## quote_eligibility_evaluated
 
