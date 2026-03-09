@@ -4,6 +4,8 @@
   "description": "Minimal demo app to show a quote decision flow with safe backend experimentation.",
   "main": "index.js",
   "scripts": {
+    "dev": "bash scripts/dev",
+    "verify": "bash scripts/verify",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {

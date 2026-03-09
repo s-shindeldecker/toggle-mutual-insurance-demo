@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "=== verify: require-check ==="
+node -e "
+  require('./src/quote');
+  require('./src/models/fake');
+  require('./src/analytics/tracker');
+  require('./src/analytics/eventEmitter');
+  require('./src/analytics/events');
+  require('./src/experiments/launchdarklyClient');
+  require('./src/quote/constructOffer');
+  console.log('  All modules loaded successfully.');
+"
+
+echo ""
+echo "=== verify: smoke test ==="
+node scripts/smoke.js
+
+echo "=== verify: all checks passed ==="
