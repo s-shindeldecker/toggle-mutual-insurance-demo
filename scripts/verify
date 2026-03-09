@@ -16,6 +16,10 @@ node -e "
 "
 
 echo ""
+echo "=== verify: lint checks ==="
+node scripts/lint.js
+
+echo ""
 echo "=== verify: smoke test ==="
 node scripts/smoke.js
 

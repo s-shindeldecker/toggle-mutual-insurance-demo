@@ -136,6 +136,42 @@ occurrence metric source (define the metric in LD, not in app code).
 | Forbidden       | PII, `modelOutputs`                              |
 | Context         | Server-built multi-context (session cookie)      |
 
+The API response `decisionSummary` also includes `modelResultsSummary` — a
+sanitized subset of model outputs safe for client display:
+
+```
+"modelResultsSummary": {
+  "riskScore": 45,
+  "priceFactor": 1.12,
+  "propensityScore": 0.65,
+  "riskTier": "medium"
+}
+```
+
+When shadow scoring flags are enabled (`shadow-risk-scoring-enabled`,
+`shadow-pricing-scoring-enabled`), `decisionSummary` also includes an optional
+`shadowResults` field. This field is diagnostic-only and never affects
+eligibility, offer construction, or lifecycle events. It represents
+**decoupled per-model** shadow evaluation: shadow pricing always uses the
+assigned risk score as input, not the shadow risk score. This design supports
+independent per-model drift monitoring. `shadowResults` must never include
+`modelOutputs` or PII.
+
+Fields appear only for the enabled shadow dimension(s); `propensityScore` is
+always included when any shadow is active. `flags` indicates which dimensions
+were active.
+
+```
+"shadowResults": {
+  "shadowVariants": { "risk": "alternate", "pricing": "alternate" },
+  "flags": { "risk": true, "pricing": true },
+  "riskScore": { "assigned": 45, "shadow": 58, "delta": 13 },
+  "riskTier": { "assigned": "medium", "shadow": "medium" },
+  "priceFactor": { "assigned": 1.12, "shadow": 1.32, "delta": 0.2 },
+  "propensityScore": { "assigned": 0.65, "shadow": 0.48, "delta": -0.17 }
+}
+```
+
 Eligible / successfully completed:
 
 ```

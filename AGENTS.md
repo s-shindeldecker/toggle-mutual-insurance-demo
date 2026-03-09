@@ -69,6 +69,8 @@ asked. Keep all source files as CommonJS `.js`.
 | `pricing-engine-enabled`           | boolean | `true`       |
 | `risk-model-variant`               | string  | `"baseline"` |
 | `pricing-model-variant`            | string  | `"baseline"` |
+| `shadow-risk-scoring-enabled`      | boolean | `false`      |
+| `shadow-pricing-scoring-enabled`   | boolean | `false`      |
 
 ### Client-side flags (src/ui/app.js)
 
@@ -86,6 +88,19 @@ built independently from the same form data.
 
 The LaunchDarkly MCP server (`user-LaunchDarkly`) is available in Cursor
 for flag management (list, get, create, update, delete flags and AI configs).
+
+## Shadow scoring (diagnostic)
+
+Shadow scoring is controlled by `shadow-risk-scoring-enabled` and
+`shadow-pricing-scoring-enabled` (server-side boolean flags, default `false`,
+typically configured as percentage rollouts in LaunchDarkly).
+
+- Shadow scoring is **diagnostic only** — it never affects eligibility, offer
+  construction, or lifecycle events.
+- Shadow pricing uses the **assigned** risk score as input (decoupled) to
+  support per-model drift monitoring. There is no coupled mode.
+- Results appear in `decisionSummary.shadowResults` (sanitized, no PII, no
+  `modelOutputs`).
 
 ## Environment variables
 

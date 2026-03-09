@@ -74,6 +74,21 @@ async function run() {
     }
   }
 
+  const quotePayload = {
+      address: "123 Main St, Springfield, IL 62704",
+      fullName: "Smoke Test",
+      age: 30,
+      maritalStatus: "single",
+      numberOfKids: 0,
+      vehicleYear: 2020,
+      vehicleMake: "Toyota",
+      vehicleModel: "Camry",
+      vehicleVin: "1HGCM82633A004352",
+      vehicleOdometer: 45000,
+      vehicleAnnualMileage: 12000,
+      userKey: "user_smoke",
+    };
+
   try {
     await waitForServer();
 
@@ -101,20 +116,6 @@ async function run() {
     assert("client-id response has clientId key", "clientId" in flagsBody);
 
     // --- POST /api/quote (eligible applicant) ---
-    const quotePayload = {
-      address: "123 Main St, Springfield, IL 62704",
-      fullName: "Smoke Test",
-      age: 30,
-      maritalStatus: "single",
-      numberOfKids: 0,
-      vehicleYear: 2020,
-      vehicleMake: "Toyota",
-      vehicleModel: "Camry",
-      vehicleVin: "1HGCM82633A004352",
-      vehicleOdometer: 45000,
-      vehicleAnnualMileage: 12000,
-      userKey: "user_smoke",
-    };
     const quote = await request("POST", "/api/quote", quotePayload);
     assert("POST /api/quote returns 200", quote.status === 200);
     const quoteResult = JSON.parse(quote.body);
@@ -125,6 +126,13 @@ async function run() {
     assert("decisionSummary has offerStrategy", typeof ds.offerStrategy === "string");
     assert("decisionSummary has modelsScored with variants", Array.isArray(ds.modelsScored) && ds.modelsScored.length > 0 && ds.modelsScored.every((m) => typeof m.variant === "string"));
     assert("modelOutputs stripped from response", !("modelOutputs" in quoteResult.quote) || quoteResult.quote.modelOutputs == null);
+    const mrs = ds.modelResultsSummary;
+    assert("decisionSummary has modelResultsSummary", mrs != null);
+    assert("modelResultsSummary.riskScore is number", typeof mrs?.riskScore === "number");
+    assert("modelResultsSummary.priceFactor is number", typeof mrs?.priceFactor === "number");
+    assert("modelResultsSummary.propensityScore is number", typeof mrs?.propensityScore === "number");
+    assert("modelResultsSummary.riskTier is string", typeof mrs?.riskTier === "string");
+    assert("shadowResults absent by default", ds.shadowResults == null);
     assert("ldContext not in response", !("ldContext" in quoteResult));
     assert("Session stable after quote", cookieJar.tm_session === initialSession);
 
@@ -192,6 +200,107 @@ async function run() {
     server.kill("SIGTERM");
     await new Promise((r) => setTimeout(r, 200));
     if (!server.killed) server.kill("SIGKILL");
+  }
+
+  // --- Phase 2: shadow scoring with env overrides ---
+  const SHADOW_PORT = PORT + 1;
+  const shadowCookieJar = {};
+
+  function shadowRequest(method, urlPath, body) {
+    return new Promise((resolve, reject) => {
+      const cookieHeader = Object.entries(shadowCookieJar)
+        .map(([k, v]) => `${k}=${v}`)
+        .join("; ");
+      const headers = {};
+      if (body) headers["Content-Type"] = "application/json";
+      if (cookieHeader) headers["Cookie"] = cookieHeader;
+      const req = http.request(
+        { hostname: "127.0.0.1", port: SHADOW_PORT, path: urlPath, method, headers },
+        (res) => {
+          const setCookies = res.headers["set-cookie"] || [];
+          for (const sc of setCookies) {
+            const [nameValue] = sc.split(";");
+            const eqIndex = nameValue.indexOf("=");
+            if (eqIndex > 0) {
+              shadowCookieJar[nameValue.slice(0, eqIndex).trim()] = nameValue.slice(eqIndex + 1).trim();
+            }
+          }
+          let data = "";
+          res.on("data", (chunk) => { data += chunk; });
+          res.on("end", () => resolve({ status: res.statusCode, headers: res.headers, body: data }));
+        }
+      );
+      req.on("error", reject);
+      if (body) req.write(JSON.stringify(body));
+      req.end();
+    });
+  }
+
+  const shadowServer = spawn("node", [serverPath], {
+    env: {
+      ...process.env,
+      PORT: String(SHADOW_PORT),
+      LAUNCHDARKLY_SDK_KEY: "",
+      LAUNCHDARKLY_CLIENT_ID: "",
+      DEBUG_EVENTS: "true",
+      SHADOW_RISK_SCORING_OVERRIDE: "true",
+      SHADOW_PRICING_SCORING_OVERRIDE: "true",
+    },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+
+  try {
+    for (let i = 0; i < 30; i++) {
+      try { await shadowRequest("GET", "/"); break; } catch { await new Promise((r) => setTimeout(r, 300)); }
+    }
+
+    const sq = await shadowRequest("POST", "/api/quote", quotePayload);
+    assert("Shadow: POST /api/quote returns 200", sq.status === 200);
+    const sqResult = JSON.parse(sq.body);
+    const sds = sqResult.quote?.decisionSummary;
+    assert("Shadow: shadowResults present", sds?.shadowResults != null);
+    const sr = sds.shadowResults;
+    assert("Shadow: shadowVariants has risk and pricing", typeof sr.shadowVariants?.risk === "string" && typeof sr.shadowVariants?.pricing === "string");
+    assert("Shadow: flags indicates active dimensions", sr.flags?.risk === true && sr.flags?.pricing === true);
+    assert("Shadow: riskScore has assigned/shadow/delta", typeof sr.riskScore?.assigned === "number" && typeof sr.riskScore?.shadow === "number" && typeof sr.riskScore?.delta === "number");
+    assert("Shadow: priceFactor has assigned/shadow/delta", typeof sr.priceFactor?.assigned === "number" && typeof sr.priceFactor?.shadow === "number" && typeof sr.priceFactor?.delta === "number");
+    assert("Shadow: propensityScore has assigned/shadow/delta", typeof sr.propensityScore?.assigned === "number" && typeof sr.propensityScore?.shadow === "number" && typeof sr.propensityScore?.delta === "number");
+    assert("Shadow: riskTier has assigned/shadow", typeof sr.riskTier?.assigned === "string" && typeof sr.riskTier?.shadow === "string");
+
+    const decLen = (n) => { const p = String(n).split(".")[1]; return p ? p.length : 0; };
+    assert("Shadow: riskScore.assigned <=1 decimal", decLen(sr.riskScore.assigned) <= 1);
+    assert("Shadow: riskScore.shadow <=1 decimal", decLen(sr.riskScore.shadow) <= 1);
+    assert("Shadow: riskScore.delta <=1 decimal", decLen(sr.riskScore.delta) <= 1);
+    assert("Shadow: priceFactor.delta <=2 decimals", decLen(sr.priceFactor.delta) <= 2);
+    assert("Shadow: priceFactor.shadow <=2 decimals", decLen(sr.priceFactor.shadow) <= 2);
+    assert("Shadow: propensityScore.delta <=2 decimals", decLen(sr.propensityScore.delta) <= 2);
+    assert("Shadow: propensityScore.shadow <=2 decimals", decLen(sr.propensityScore.shadow) <= 2);
+    assert("Shadow: riskScore delta consistent",
+      sr.riskScore.delta === Number((sr.riskScore.shadow - sr.riskScore.assigned).toFixed(1)));
+
+    const maxDecimals = { riskScore: 1, riskTier: 0, priceFactor: 2, propensityScore: 2 };
+    const floatTails = [];
+    for (const [key, maxDp] of Object.entries(maxDecimals)) {
+      const obj = sr[key];
+      if (!obj || typeof obj !== "object") continue;
+      for (const [field, val] of Object.entries(obj)) {
+        if (typeof val !== "number") continue;
+        const dp = String(val).split(".")[1]?.length || 0;
+        if (dp > maxDp) floatTails.push(`${key}.${field}=${val} (${dp} dp, max ${maxDp})`);
+      }
+    }
+    assert("Shadow: no long float tails in shadowResults", floatTails.length === 0);
+
+    assert("Shadow: modelOutputs still stripped", sqResult.quote.modelOutputs == null);
+
+    const shadowDebug = await shadowRequest("GET", "/api/debug/events");
+    const shadowEvents = JSON.parse(shadowDebug.body).events.map((e) => e.name);
+    assert("Shadow: no extra shadow-specific events emitted", !shadowEvents.some((n) => n.includes("shadow")));
+    assert("Shadow: no metric_* events emitted", !shadowEvents.some((n) => n.startsWith("metric_")));
+  } finally {
+    shadowServer.kill("SIGTERM");
+    await new Promise((r) => setTimeout(r, 200));
+    if (!shadowServer.killed) shadowServer.kill("SIGKILL");
   }
 
   console.log("");

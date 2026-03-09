@@ -256,6 +256,85 @@ const selectOfferStrategy = async (quote, forcedOfferStrategy) => {
   return offerStrategy;
 };
 
+// ---------------------------------------------------------------------------
+// Shadow scoring invariants (decoupled, diagnostic-only)
+//
+// 1. Shadow risk and shadow pricing are evaluated independently. Shadow risk
+//    must never feed into the pricing shadow call; shadow pricing always
+//    receives assignedRiskVariant so it uses the assigned risk score.
+// 2. Shadow results are diagnostic — they must never affect eligibility,
+//    guardrails, offer construction, or lifecycle events.
+// 3. derivePropensity exists so propensity can be recomputed from individual
+//    shadow dimensions without coupling them through evaluateFakeModels.
+// 4. All numeric values in shadowResults are rounded for presentation
+//    (riskScore→1 dp, priceFactor/propensityScore→2 dp). Core computations
+//    are untouched.
+// ---------------------------------------------------------------------------
+
+const derivePropensity = (riskScore, priceFactor) => {
+  const nr = 1 - riskScore / 100;
+  const np = 1 - (priceFactor - 0.8);
+  return Number(Math.min(1, Math.max(0, (nr + np) / 2)).toFixed(2));
+};
+
+const computeShadowScoring = async (quote, assignedRiskVariant, assignedPricingVariant) => {
+  const context = buildLaunchDarklyContext(quote, { includeRiskTier: false });
+  const shadowRiskEnabled =
+    process.env.SHADOW_RISK_SCORING_OVERRIDE === "true" ||
+    (await getBooleanFlag("shadow-risk-scoring-enabled", context, false));
+  const shadowPricingEnabled =
+    process.env.SHADOW_PRICING_SCORING_OVERRIDE === "true" ||
+    (await getBooleanFlag("shadow-pricing-scoring-enabled", context, false));
+
+  if (!shadowRiskEnabled && !shadowPricingEnabled) {
+    return null;
+  }
+
+  const assigned = quote.modelOutputs;
+  const shadowRiskVariant = shadowRiskEnabled
+    ? (assignedRiskVariant === "baseline" ? "alternate" : "baseline")
+    : assignedRiskVariant;
+  const shadowPricingVariant = shadowPricingEnabled
+    ? (assignedPricingVariant === "baseline" ? "alternate" : "baseline")
+    : assignedPricingVariant;
+
+  const results = {
+    shadowVariants: { risk: shadowRiskVariant, pricing: shadowPricingVariant },
+    flags: { risk: shadowRiskEnabled, pricing: shadowPricingEnabled },
+  };
+
+  const roundN = (v, d) => Number(v.toFixed(d));
+
+  let shadowRiskScore = assigned.riskScore;
+  if (shadowRiskEnabled) {
+    const riskShadow = evaluateFakeModels(quote.input, shadowRiskVariant, assignedPricingVariant);
+    shadowRiskScore = riskShadow.riskScore;
+    const a = roundN(assigned.riskScore, 1);
+    const s = roundN(shadowRiskScore, 1);
+    results.riskScore = { assigned: a, shadow: s, delta: roundN(s - a, 1) };
+    results.riskTier = {
+      assigned: getRiskTier(assigned.riskScore),
+      shadow: getRiskTier(shadowRiskScore),
+    };
+  }
+
+  let shadowPriceFactor = assigned.priceFactor;
+  if (shadowPricingEnabled) {
+    const priceShadow = evaluateFakeModels(quote.input, assignedRiskVariant, shadowPricingVariant);
+    shadowPriceFactor = priceShadow.priceFactor;
+    const a = roundN(assigned.priceFactor, 2);
+    const s = roundN(shadowPriceFactor, 2);
+    results.priceFactor = { assigned: a, shadow: s, delta: roundN(s - a, 2) };
+  }
+
+  const shadowPropensity = derivePropensity(shadowRiskScore, shadowPriceFactor);
+  const pa = roundN(assigned.propensityScore, 2);
+  const ps = roundN(shadowPropensity, 2);
+  results.propensityScore = { assigned: pa, shadow: ps, delta: roundN(ps - pa, 2) };
+
+  return results;
+};
+
 const constructOfferStep = (quote, offerStrategy) => {
   const eligible = quote.eligibility?.eligible ?? false;
   if (!eligible) {
@@ -293,6 +372,7 @@ const runQuoteDecisionFlow = async (input) => {
     getContext()
   );
   const { riskModelVariant, pricingModelVariant } = await callFakeModels(quote);
+  const shadowResults = await computeShadowScoring(quote, riskModelVariant, pricingModelVariant);
   const baseEligibility = evaluateEligibility(quote);
   const guardrails = await applyGuardrails(quote, baseEligibility);
   finalizeEligibility(quote, guardrails.eligibility);
@@ -331,6 +411,15 @@ const runQuoteDecisionFlow = async (input) => {
     };
   }
   decisionSummary.riskTier = getRiskTier(quote.modelOutputs?.riskScore ?? 0);
+  decisionSummary.modelResultsSummary = {
+    riskScore: quote.modelOutputs?.riskScore ?? 0,
+    priceFactor: quote.modelOutputs?.priceFactor ?? 0,
+    propensityScore: quote.modelOutputs?.propensityScore ?? 0,
+    riskTier: decisionSummary.riskTier,
+  };
+  if (shadowResults) {
+    decisionSummary.shadowResults = shadowResults;
+  }
   decisionSummary.modelsScored = [
     { model: "risk", variant: riskModelVariant },
     { model: "price", variant: pricingModelVariant },

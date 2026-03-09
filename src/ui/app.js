@@ -440,6 +440,18 @@ const App = () => {
         applied: gr.applied,
       };
     }
+    if (ds.modelResultsSummary) {
+      const m = ds.modelResultsSummary;
+      snapshot.modelResults = {
+        riskScore: m.riskScore != null ? Math.round(m.riskScore) : null,
+        priceFactor: m.priceFactor != null ? Number(m.priceFactor.toFixed(2)) : null,
+        propensityScore: m.propensityScore != null ? Number(m.propensityScore.toFixed(2)) : null,
+        riskTier: m.riskTier || null,
+      };
+    }
+    if (ds.shadowResults) {
+      snapshot.shadowResults = ds.shadowResults;
+    }
     if (off) {
       snapshot.offer = {
         price: off.price,
@@ -547,6 +559,92 @@ const App = () => {
             </div>
           </div>
         `}
+
+        ${ds.modelResultsSummary && (() => {
+          const m = ds.modelResultsSummary;
+          return html`
+            <div className="demo-panel-section">
+              <h4>Model Results</h4>
+              <div className="demo-panel-row">
+                <span className="label">Risk score</span>
+                <span className="value">${m.riskScore != null ? Math.round(m.riskScore) : "—"}</span>
+              </div>
+              <div className="demo-panel-row">
+                <span className="label">Price factor</span>
+                <span className="value">${m.priceFactor != null ? m.priceFactor.toFixed(2) : "—"}</span>
+              </div>
+              <div className="demo-panel-row">
+                <span className="label">Propensity score</span>
+                <span className="value">${m.propensityScore != null ? m.propensityScore.toFixed(2) : "—"}</span>
+              </div>
+              <div className="demo-panel-row">
+                <span className="label">Risk tier</span>
+                <span className="value">${m.riskTier || "—"}</span>
+              </div>
+            </div>
+          `;
+        })()}`}
+
+        ${ds.shadowResults && (() => {
+          const sr = ds.shadowResults;
+          const fl = sr.flags || {};
+          const activeFlags = [fl.risk && "risk", fl.pricing && "pricing"].filter(Boolean).join(", ");
+          const fmtD = (v, d) => d === 0 ? v.toFixed(d) : v.toFixed(d);
+          const deltaClass = (d) => d > 0 ? "delta-positive" : d < 0 ? "delta-negative" : "delta-zero";
+          const fmtDelta = (d, dec) => (d > 0 ? "+" : "") + d.toFixed(dec);
+          return html`
+            <div className="demo-panel-section">
+              <h4>Shadow Comparison</h4>
+              <div className="demo-panel-shadow-label">
+                Active: ${activeFlags || "none"} · Variants: risk=${sr.shadowVariants?.risk || "—"}, pricing=${sr.shadowVariants?.pricing || "—"}
+              </div>
+              ${sr.riskScore && html`
+                <div className="demo-panel-shadow-row">
+                  <span>Risk score</span>
+                  <span className="demo-panel-shadow-values">
+                    ${sr.riskScore.assigned} → ${sr.riskScore.shadow}
+                    <span className=${`demo-panel-shadow-delta ${deltaClass(sr.riskScore.delta)}`}>
+                      (${fmtDelta(sr.riskScore.delta, 0)})
+                    </span>
+                  </span>
+                </div>
+              `}
+              ${sr.riskTier && html`
+                <div className="demo-panel-shadow-row">
+                  <span>Risk tier</span>
+                  <span className="demo-panel-shadow-values">
+                    ${sr.riskTier.assigned} → ${sr.riskTier.shadow}
+                  </span>
+                </div>
+              `}
+              ${sr.priceFactor && html`
+                <div className="demo-panel-shadow-row">
+                  <span>Price factor</span>
+                  <span className="demo-panel-shadow-values">
+                    ${sr.priceFactor.assigned.toFixed(2)} → ${sr.priceFactor.shadow.toFixed(2)}
+                    <span className=${`demo-panel-shadow-delta ${deltaClass(sr.priceFactor.delta)}`}>
+                      (${fmtDelta(sr.priceFactor.delta, 2)})
+                    </span>
+                  </span>
+                </div>
+              `}
+              ${sr.propensityScore && html`
+                <div className="demo-panel-shadow-row">
+                  <span>Propensity</span>
+                  <span className="demo-panel-shadow-values">
+                    ${sr.propensityScore.assigned.toFixed(2)} → ${sr.propensityScore.shadow.toFixed(2)}
+                    <span className=${`demo-panel-shadow-delta ${deltaClass(-sr.propensityScore.delta)}`}>
+                      (${fmtDelta(sr.propensityScore.delta, 2)})
+                    </span>
+                  </span>
+                </div>
+              `}
+              <div className="demo-panel-shadow-label" style=${{ marginTop: "6px", fontStyle: "italic" }}>
+                Decoupled: pricing shadow uses assigned risk score (per-model drift).
+              </div>
+            </div>
+          `;
+        })()}`}
 
         ${off && html`
           <div className="demo-panel-section">
