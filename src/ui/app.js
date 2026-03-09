@@ -583,7 +583,7 @@ const App = () => {
               </div>
             </div>
           `;
-        })()}`}
+        })()}
 
         ${ds.shadowResults && (() => {
           const sr = ds.shadowResults;
@@ -644,7 +644,7 @@ const App = () => {
               </div>
             </div>
           `;
-        })()}`}
+        })()}
 
         ${off && html`
           <div className="demo-panel-section">
