@@ -4,6 +4,11 @@ import htm from "https://esm.sh/htm@3";
 
 const html = htm.bind(React.createElement);
 
+const getCookie = (name) => {
+  const match = document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`));
+  return match ? match[1] : null;
+};
+
 const presets = [
   {
     id: "urban_commuter",
@@ -64,20 +69,23 @@ const App = () => {
   const [step, setStep] = React.useState("home");
   const [result, setResult] = React.useState(null);
   const [loading, setLoading] = React.useState(false);
+  const [checkoutLoading, setCheckoutLoading] = React.useState(false);
   const [error, setError] = React.useState("");
   const [checkout, setCheckout] = React.useState({
     fullName: "",
     email: "",
     address: "",
   });
+  const [confirmationId, setConfirmationId] = React.useState(null);
   const [ldReady, setLdReady] = React.useState(false);
   const [mascotText, setMascotText] = React.useState(null);
+  const [demoPanelOpen, setDemoPanelOpen] = React.useState(false);
   const ldClientRef = React.useRef(null);
   const sessionKeyRef = React.useRef(null);
   const userKeyRef = React.useRef(null);
 
-  const generateSessionKey = () =>
-    `sess_${Math.random().toString(36).slice(2, 10)}`;
+  const getSessionKey = () =>
+    getCookie("tm_session_public") || `sess_${Math.random().toString(36).slice(2, 10)}`;
   const generateUserKey = () =>
     `user_${Math.random().toString(36).slice(2, 10)}`;
 
@@ -172,12 +180,32 @@ const App = () => {
     client.identify(context);
   };
 
-  const resetAnonymousSession = () => {
-    sessionKeyRef.current = generateSessionKey();
+  const goHome = () => {
     userKeyRef.current = null;
     setSelectedPreset(presets[0].id);
     setForm(presets[0].data);
     setCheckout({ fullName: "", email: "", address: "" });
+    setConfirmationId(null);
+    setResult(null);
+    setError("");
+    setStep("home");
+  };
+
+  const startNewSession = async () => {
+    try {
+      const response = await fetch("/api/session/reset", { method: "POST" });
+      if (!response.ok) {
+        return;
+      }
+    } catch {
+      return;
+    }
+    sessionKeyRef.current = getSessionKey();
+    userKeyRef.current = null;
+    setSelectedPreset(presets[0].id);
+    setForm(presets[0].data);
+    setCheckout({ fullName: "", email: "", address: "" });
+    setConfirmationId(null);
     setResult(null);
     setError("");
     setStep("home");
@@ -200,7 +228,7 @@ const App = () => {
 
         // Client-side LaunchDarkly is for presentation-only flags. Never evaluate decision flags here.
         if (!ldClientRef.current) {
-          sessionKeyRef.current = generateSessionKey();
+          sessionKeyRef.current = getSessionKey();
           const context = buildClientContext(form, "session");
           ldClientRef.current = window.LDClient?.initialize(
             payload.clientId,
@@ -242,12 +270,51 @@ const App = () => {
         return;
       }
       event.preventDefault();
-      resetAnonymousSession();
+      goHome();
+    };
+
+    const handleNewUser = (event) => {
+      event.preventDefault();
+      startNewSession();
+    };
+
+    const handleDemoPanelBtn = () => {
+      setDemoPanelOpen((prev) => !prev);
+    };
+
+    const handleKeyDown = (event) => {
+      if (event.key === "D" && event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey) {
+        const tag = (event.target.tagName || "").toLowerCase();
+        if (tag === "input" || tag === "textarea" || tag === "select") {
+          return;
+        }
+        if (event.target.isContentEditable) {
+          return;
+        }
+        event.preventDefault();
+        setDemoPanelOpen((prev) => !prev);
+      }
     };
 
     document.addEventListener("click", handleHomeClick);
+    document.addEventListener("keydown", handleKeyDown);
+    const newUserBtn = document.getElementById("new-user-btn");
+    if (newUserBtn) {
+      newUserBtn.addEventListener("click", handleNewUser);
+    }
+    const demoPanelBtn = document.getElementById("demo-panel-btn");
+    if (demoPanelBtn) {
+      demoPanelBtn.addEventListener("click", handleDemoPanelBtn);
+    }
     return () => {
       document.removeEventListener("click", handleHomeClick);
+      document.removeEventListener("keydown", handleKeyDown);
+      if (newUserBtn) {
+        newUserBtn.removeEventListener("click", handleNewUser);
+      }
+      if (demoPanelBtn) {
+        demoPanelBtn.removeEventListener("click", handleDemoPanelBtn);
+      }
     };
   }, [ldReady]);
 
@@ -278,7 +345,6 @@ const App = () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...form,
-          sessionKey: sessionKeyRef.current,
           userKey: userKeyRef.current,
         }),
       });
@@ -305,7 +371,36 @@ const App = () => {
   const startOver = () => {
     setStep("home");
     setResult(null);
+    setConfirmationId(null);
     setError("");
+  };
+
+  const submitCheckout = async () => {
+    setCheckoutLoading(true);
+    setError("");
+    try {
+      const response = await fetch("/api/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: checkout.fullName,
+          email: checkout.email,
+          address: checkout.address,
+          quoteId: result?.id || "unknown",
+          userKey: userKeyRef.current,
+        }),
+      });
+      if (!response.ok) {
+        throw new Error("Checkout failed.");
+      }
+      const payload = await response.json();
+      setConfirmationId(payload.confirmationId);
+      setStep("confirmation");
+    } catch (err) {
+      setError(err.message || "Checkout error");
+    } finally {
+      setCheckoutLoading(false);
+    }
   };
 
   const offer = result?.offer;
@@ -318,6 +413,182 @@ const App = () => {
       ? result.decisionSummary.riskTier[0].toUpperCase() +
         result.decisionSummary.riskTier.slice(1)
       : "—";
+
+  const sessionShortId = (() => {
+    const sid = getCookie("tm_session_public") || "";
+    return sid.length > 6 ? sid.slice(-6) : sid || "—";
+  })();
+
+  const buildSnapshot = () => {
+    const ds = result?.decisionSummary || {};
+    const gr = ds.guardrails || {};
+    const off = result?.offer;
+    const snapshot = {
+      timestamp: new Date().toISOString(),
+      session: sessionShortId,
+      assignments: {
+        offerStrategy: ds.offerStrategy || null,
+        riskModel: ds.modelsScored?.find((m) => m.model === "risk")?.variant || null,
+        pricingModel: ds.modelsScored?.find((m) => m.model === "price")?.variant || null,
+        riskTier: ds.riskTier || null,
+      },
+    };
+    if (gr.applied?.length > 0) {
+      snapshot.guardrails = {
+        instantQuote: gr.instantQuoteEnabled,
+        pricingEngine: gr.pricingEngineEnabled,
+        applied: gr.applied,
+      };
+    }
+    if (off) {
+      snapshot.offer = {
+        price: off.price,
+        coverageTier: off.coverageTier,
+        limits: off.limits || null,
+      };
+    }
+    return snapshot;
+  };
+
+  const copySnapshot = async (event) => {
+    const text = JSON.stringify(buildSnapshot(), null, 2);
+    const btn = event.currentTarget;
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+      }
+      btn.textContent = "Copied!";
+    } catch {
+      btn.textContent = "Copy failed";
+    }
+    setTimeout(() => { btn.textContent = "Copy snapshot"; }, 1500);
+  };
+
+  const DemoPanel = () => {
+    if (!demoPanelOpen) {
+      return null;
+    }
+
+    const closePanel = () => setDemoPanelOpen(false);
+
+    if (!result) {
+      return html`
+        <div className="demo-panel-overlay" onClick=${closePanel} />
+        <div className="demo-panel">
+          <button className="demo-panel-close" onClick=${closePanel} aria-label="Close">×</button>
+          <h3>Demo Panel</h3>
+          <div className="demo-panel-empty">Run a quote to see assignments and impact</div>
+          <div className="demo-panel-section">
+            <h4>Session</h4>
+            <div className="demo-panel-row">
+              <span className="label">Session ID</span>
+              <span className="value">…${sessionShortId}</span>
+            </div>
+          </div>
+          <div className="demo-panel-hint">Shift+D to toggle</div>
+        </div>
+      `;
+    }
+
+    const ds = result.decisionSummary || {};
+    const gr = ds.guardrails || {};
+    const off = result.offer;
+
+    return html`
+      <div className="demo-panel-overlay" onClick=${closePanel} />
+      <div className="demo-panel">
+        <button className="demo-panel-close" onClick=${closePanel} aria-label="Close">×</button>
+        <h3>Demo Panel</h3>
+        <p className="demo-panel-source">Values from server quote response (decisionSummary)</p>
+
+        <div className="demo-panel-section">
+          <h4>Assignments</h4>
+          <div className="demo-panel-row">
+            <span className="label">Offer strategy</span>
+            <span className="value">${ds.offerStrategy || "—"}</span>
+          </div>
+          <div className="demo-panel-row">
+            <span className="label">Risk model</span>
+            <span className="value">${ds.modelsScored?.find((m) => m.model === "risk")?.variant || "—"}</span>
+          </div>
+          <div className="demo-panel-row">
+            <span className="label">Pricing model</span>
+            <span className="value">${ds.modelsScored?.find((m) => m.model === "price")?.variant || "—"}</span>
+          </div>
+          <div className="demo-panel-row">
+            <span className="label">Risk tier</span>
+            <span className="value">${ds.riskTier || "—"}</span>
+          </div>
+        </div>
+
+        ${gr.applied?.length > 0 && html`
+          <div className="demo-panel-section">
+            <h4>Guardrails</h4>
+            <div className="demo-panel-row">
+              <span className="label">Instant quote</span>
+              <span className="value">${gr.instantQuoteEnabled ? "enabled" : "disabled"}</span>
+            </div>
+            <div className="demo-panel-row">
+              <span className="label">Pricing engine</span>
+              <span className="value">${gr.pricingEngineEnabled ? "enabled" : "disabled"}</span>
+            </div>
+            <div className="demo-panel-row">
+              <span className="label">Applied</span>
+              <span className="value">${gr.applied.join(", ")}</span>
+            </div>
+          </div>
+        `}
+
+        ${off && html`
+          <div className="demo-panel-section">
+            <h4>Offer</h4>
+            <div className="demo-panel-row">
+              <span className="label">Price</span>
+              <span className="value">$${off.price?.toFixed(2)} / mo</span>
+            </div>
+            <div className="demo-panel-row">
+              <span className="label">Coverage tier</span>
+              <span className="value">${off.coverageTier || "—"}</span>
+            </div>
+            ${off.limits && html`
+              <div className="demo-panel-row">
+                <span className="label">BI liability</span>
+                <span className="value">${off.limits.bodilyInjury || "—"}</span>
+              </div>
+              <div className="demo-panel-row">
+                <span className="label">Property damage</span>
+                <span className="value">${off.limits.propertyDamage || "—"}</span>
+              </div>
+              <div className="demo-panel-row">
+                <span className="label">Collision deductible</span>
+                <span className="value">${off.limits.collisionDeductible || "—"}</span>
+              </div>
+            `}
+          </div>
+        `}
+
+        <div className="demo-panel-section">
+          <h4>Session</h4>
+          <div className="demo-panel-row">
+            <span className="label">Session ID</span>
+            <span className="value">…${sessionShortId}</span>
+          </div>
+        </div>
+
+        <button className="demo-panel-copy" onClick=${copySnapshot}>Copy snapshot</button>
+        <div className="demo-panel-hint">Shift+D to toggle</div>
+      </div>
+    `;
+  };
 
   const stepOrder = [
     { id: "intake-address", label: "1. Address" },
@@ -703,9 +974,11 @@ const App = () => {
             <div className="offer-price">${offerPrice}</div>
             <div>${coverageTier} coverage</div>
           </div>
+          ${error &&
+          html`<p className="muted" style=${{ color: "#b91c1c" }}>${error}</p>`}
           <div className="actions">
-            <button type="button" onClick=${() => setStep("confirmation")}>
-              Confirm policy
+            <button type="button" onClick=${submitCheckout} disabled=${checkoutLoading}>
+              ${checkoutLoading ? "Processing..." : "Confirm policy"}
             </button>
             <button className="ghost" type="button" onClick=${startOver}>
               Start over
@@ -722,6 +995,8 @@ const App = () => {
           <p className="muted">
             We received your information and have reserved your policy.
           </p>
+          ${confirmationId &&
+          html`<p><strong>Confirmation:</strong> ${confirmationId}</p>`}
           <div className="offer-card">
             <div className="offer-price">${offerPrice}</div>
             <div>${coverageTier} coverage</div>
@@ -733,6 +1008,8 @@ const App = () => {
           </div>
         </div>
       `}
+
+      <${DemoPanel} />
     </div>
   `;
 };

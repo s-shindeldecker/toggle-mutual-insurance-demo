@@ -1,17 +1,46 @@
 // Validation-only: load .env for LaunchDarkly connectivity checks.
 require("dotenv").config();
 
+const crypto = require("crypto");
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
 const { runQuoteDecisionFlow } = require("../quote");
+const { AnalyticsEvents } = require("../analytics/events");
+const { QUOTE_LIFECYCLE } = require("../analytics/lifecycle");
+const { trackEvent } = require("../analytics/tracker");
+const { eventEmitter } = require("../analytics/eventEmitter");
 
 const PORT = process.env.PORT || 3000;
+let nextConfirmationId = 1;
 const uiDir = __dirname;
 const ldEnabled = Boolean(process.env.LAUNCHDARKLY_SDK_KEY);
 // Validation-only: log LD status on startup.
 console.log(`[LD] LD_ENABLED=${ldEnabled}`);
 console.log(`[LD] LaunchDarkly init will ${ldEnabled ? "" : "not "}run.`);
+
+const parseCookies = (req) => {
+  const header = req.headers.cookie || "";
+  const cookies = {};
+  header.split(";").forEach((pair) => {
+    const [name, ...rest] = pair.trim().split("=");
+    if (name) cookies[name] = rest.join("=");
+  });
+  return cookies;
+};
+
+const ensureSession = (req, res) => {
+  const cookies = parseCookies(req);
+  let sessionId = cookies.tm_session;
+  if (!sessionId) {
+    sessionId = crypto.randomUUID();
+    res.setHeader("Set-Cookie", [
+      `tm_session=${sessionId}; HttpOnly; SameSite=Lax; Path=/`,
+      `tm_session_public=${sessionId}; SameSite=Lax; Path=/`,
+    ]);
+  }
+  return sessionId;
+};
 
 const readJsonBody = (req) =>
   new Promise((resolve, reject) => {
@@ -34,7 +63,6 @@ const buildQuoteInput = ({
   age,
   maritalStatus,
   numberOfKids,
-  sessionKey,
   userKey,
   vehicleYear,
   vehicleMake,
@@ -56,7 +84,7 @@ const buildQuoteInput = ({
     key: userKey || null,
   },
   session: {
-    key: sessionKey || null,
+    key: null,
   },
   vehicle: {
     year: Number(vehicleYear) || 2018,
@@ -77,6 +105,8 @@ const respondJson = (res, statusCode, payload) => {
 };
 
 const server = http.createServer(async (req, res) => {
+  const sessionId = ensureSession(req, res);
+
   if (req.method === "GET" && req.url === "/") {
     const htmlPath = path.join(uiDir, "index.html");
     res.writeHead(200, { "Content-Type": "text/html" });
@@ -108,20 +138,76 @@ const server = http.createServer(async (req, res) => {
     try {
       const body = await readJsonBody(req);
       const quoteInput = buildQuoteInput(body);
+      quoteInput.session.key = sessionId;
       const quote = await runQuoteDecisionFlow(quoteInput);
       const sanitizedQuote = {
         ...quote,
         modelOutputs: undefined,
+        ldContext: undefined,
       };
       respondJson(res, 200, { quote: sanitizedQuote });
     } catch (error) {
-      respondJson(res, 400, { error: "Invalid request body" });
+      respondJson(res, 400, { ok: false, error: "Invalid request body" });
     }
     return;
   }
 
   if (req.method === "GET" && req.url === "/api/flags/client-id") {
     respondJson(res, 200, { clientId: process.env.LAUNCHDARKLY_CLIENT_ID || "" });
+    return;
+  }
+
+  if (req.method === "POST" && req.url === "/api/checkout") {
+    try {
+      const body = await readJsonBody(req);
+      const { quoteId, userKey } = body;
+      if (!quoteId) {
+        respondJson(res, 400, { ok: false, error: "quoteId is required" });
+        return;
+      }
+
+      const context = {
+        kind: "multi",
+        session: { key: sessionId },
+        user: { key: userKey || "unknown" },
+      };
+
+      trackEvent(AnalyticsEvents.CHECKOUT_STARTED, { quoteId, status: QUOTE_LIFECYCLE.CHECKOUT }, context);
+      trackEvent(AnalyticsEvents.CHECKOUT_SUBMITTED, { quoteId, status: QUOTE_LIFECYCLE.CHECKOUT }, context);
+
+      const confirmationId = `CONF-${nextConfirmationId}`;
+      nextConfirmationId += 1;
+
+      trackEvent(
+        AnalyticsEvents.CHECKOUT_COMPLETED,
+        { quoteId, status: QUOTE_LIFECYCLE.COMPLETED, completed: true, confirmationId },
+        context
+      );
+
+      respondJson(res, 200, { ok: true, confirmationId });
+    } catch (error) {
+      respondJson(res, 400, { ok: false, error: "Invalid checkout request" });
+    }
+    return;
+  }
+
+  if (req.method === "POST" && req.url === "/api/session/reset") {
+    const newSessionId = crypto.randomUUID();
+    res.setHeader("Set-Cookie", [
+      `tm_session=${newSessionId}; HttpOnly; SameSite=Lax; Path=/`,
+      `tm_session_public=${newSessionId}; SameSite=Lax; Path=/`,
+    ]);
+    respondJson(res, 200, { ok: true, sessionId: newSessionId });
+    return;
+  }
+
+  if (req.method === "GET" && req.url === "/api/debug/events") {
+    if (process.env.DEBUG_EVENTS !== "true") {
+      res.writeHead(404);
+      res.end();
+      return;
+    }
+    respondJson(res, 200, { events: eventEmitter.getEmittedEvents() });
     return;
   }
 

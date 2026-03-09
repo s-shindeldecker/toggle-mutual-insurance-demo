@@ -1,5 +1,6 @@
 const crypto = require("crypto");
 const { AnalyticsEvents } = require("../analytics/events");
+const { QUOTE_LIFECYCLE } = require("../analytics/lifecycle");
 const { trackEvent } = require("../analytics/tracker");
 const { evaluateFakeModels } = require("../models/fake");
 const { Quote } = require("./quote");
@@ -268,7 +269,7 @@ const constructOfferStep = (quote, offerStrategy) => {
 };
 
 const completeQuote = (quote) => {
-  quote.updateStatus("completed");
+  quote.updateStatus(QUOTE_LIFECYCLE.COMPLETED);
   const completed = quote.eligibility?.eligible ?? false;
   const payload = {
     quoteId: quote.id,
@@ -299,6 +300,7 @@ const runQuoteDecisionFlow = async (input) => {
     AnalyticsEvents.QUOTE_ELIGIBILITY_EVALUATED,
     {
       quoteId: quote.id,
+      status: QUOTE_LIFECYCLE.ELIGIBILITY,
       eligible: guardrails.eligibility.eligible,
       reasons: guardrails.eligibility.reasons,
     },
@@ -341,13 +343,17 @@ const runQuoteDecisionFlow = async (input) => {
   };
   decisionSummary.riskFactors = buildRiskFactors(quote);
   quote.decisionSummary = decisionSummary;
+  quote.ldContext = getContext();
   constructOfferStep(quote, offerStrategy);
   if (quote.offer) {
     trackEvent(
       AnalyticsEvents.QUOTE_OFFER_CONSTRUCTED,
       {
         quoteId: quote.id,
+        status: QUOTE_LIFECYCLE.OFFER,
         offerStrategy,
+        riskModelVariant,
+        pricingModelVariant,
         coverageTier: quote.offer.coverageTier,
         price: quote.offer.price,
       },
@@ -360,6 +366,9 @@ const runQuoteDecisionFlow = async (input) => {
     quoteId: quote.id,
     status: quote.status,
     completed,
+    offerStrategy,
+    riskModelVariant,
+    pricingModelVariant,
   };
   if (!completed) {
     completionPayload.completionReason = "ineligible";

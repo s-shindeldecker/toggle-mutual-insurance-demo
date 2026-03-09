@@ -1,3 +1,5 @@
+const { QUOTE_LIFECYCLE } = require("../analytics/lifecycle");
+
 let nextQuoteId = 1;
 
 class Quote {
@@ -5,7 +7,7 @@ class Quote {
     this.id = `quote_${nextQuoteId}`;
     nextQuoteId += 1;
     this.input = input;
-    this.status = "initialized";
+    this.status = QUOTE_LIFECYCLE.INITIALIZED;
     this.createdAt = new Date().toISOString();
     this.eligibility = null;
     this.modelOutputs = null;

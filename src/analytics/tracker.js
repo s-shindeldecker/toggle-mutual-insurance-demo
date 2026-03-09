@@ -1,4 +1,5 @@
 const { eventEmitter } = require("./eventEmitter");
+const { assertValidLifecycleStage } = require("./validate");
 const { initializeLaunchDarkly } = require("../experiments/launchdarklyClient");
 
 const sinks = [];
@@ -21,6 +22,9 @@ const launchDarklySink = {
 registerSink(launchDarklySink);
 
 const trackEvent = (eventName, payload, context) => {
+  if (payload && typeof payload.status === "string") {
+    assertValidLifecycleStage(payload.status);
+  }
   eventEmitter.emit(eventName, payload);
   for (const sink of sinks) {
     try {

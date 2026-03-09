@@ -26,11 +26,16 @@ asked. Keep all source files as CommonJS `.js`.
    Decision flags (eligibility, pricing, risk, strategy) are evaluated
    server-side only. Client-side flags are presentation-only (copy, layout).
 
-2. A flag must never be evaluated on both server and client.
+2. **Flag keys are owned by exactly one side.** Server flags drive decisions
+   (eligibility, pricing, risk, strategy). Client flags drive presentation
+   (copy, layout, labels). The UI reflects server decisions only via derived
+   fields in the API response — never by evaluating a decision flag itself.
 
 3. The quote decision pipeline lives in `src/quote/decisionFlow.js`.
    Steps run sequentially: init → models → eligibility → guardrails →
-   strategy → offer → complete. Do not reorder or skip steps.
+   strategy → offer → complete. Do not reorder or skip steps. New steps
+   must be **appended** (never inserted) and documented in this file and
+   in `docs/analytics-events.md` if they emit events.
 
 4. Analytics events follow the taxonomy in `docs/analytics-events.md`.
    Event names are `<domain>_<action>`, lower-case snake_case. Payloads
@@ -38,6 +43,20 @@ asked. Keep all source files as CommonJS `.js`.
 
 5. Model outputs (`modelOutputs`) are **never** sent to the client.
    The server strips them before responding.
+
+6. **Smoke test coverage is mandatory.** Any change to an endpoint, route,
+   or user-visible behavior must add or update assertions in
+   `scripts/smoke.js`. `npm run verify` must pass before committing.
+
+7. **Offline-first for LaunchDarkly.** The app must function fully when
+   `LD_ENABLED=false` or when SDK keys are missing. Every flag evaluation
+   must supply a sensible default so the baseline flow works without
+   network access.
+
+8. **Safe dependency removal.** Before removing a dependency: (a) prove it
+   is unused by searching all source files, (b) remove the import/require,
+   (c) run `npm run verify` and confirm it passes. Do not remove and
+   verify in separate steps.
 
 ## LaunchDarkly conventions
 

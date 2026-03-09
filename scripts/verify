@@ -8,6 +8,8 @@ node -e "
   require('./src/analytics/tracker');
   require('./src/analytics/eventEmitter');
   require('./src/analytics/events');
+  require('./src/analytics/lifecycle');
+  require('./src/analytics/validate');
   require('./src/experiments/launchdarklyClient');
   require('./src/quote/constructOffer');
   console.log('  All modules loaded successfully.');
