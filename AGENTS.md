@@ -74,9 +74,14 @@ asked. Keep all source files as CommonJS `.js`.
 
 ### Client-side flags (src/ui/app.js)
 
-| Flag key         | Type   | Default                         |
-|------------------|--------|---------------------------------|
-| `mascot-text-box`| string | `"Meet ToMu — the Tree Shrew"` |
+| Flag key                  | Type   | Default                         |
+|---------------------------|--------|---------------------------------|
+| `mascot-text-box`         | string | `"Meet ToMu — the Tree Shrew"` |
+| `about-us-button-color`   | string | `"#2b6cb0"`                     |
+| `about-hero-image`        | string | `"none"`                        |
+| `about-team-image`        | string | `"none"`                        |
+| `about-platform-image`    | string | `"none"`                        |
+| `about-mascot-image`      | string | `"none"`                        |
 
 ### Multi-context
 

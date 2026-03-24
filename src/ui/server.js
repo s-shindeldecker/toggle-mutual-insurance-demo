@@ -115,15 +115,30 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (req.method === "GET" && req.url?.startsWith("/assets/")) {
-    const assetPath = path.join(
-      __dirname,
-      "..",
-      "..",
-      "assets",
-      path.basename(req.url)
-    );
-    res.writeHead(200, { "Content-Type": "image/png" });
-    res.end(fs.readFileSync(assetPath));
+    const relPath = decodeURIComponent(req.url.slice("/assets/".length));
+    if (relPath.includes("..") || path.isAbsolute(relPath)) {
+      res.writeHead(400, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ ok: false, error: "Invalid asset path" }));
+      return;
+    }
+    const assetsRoot = path.join(__dirname, "..", "..", "assets");
+    const assetPath = path.join(assetsRoot, relPath);
+    if (!assetPath.startsWith(assetsRoot) || !fs.existsSync(assetPath)) {
+      res.writeHead(404, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ ok: false, error: "Asset not found" }));
+      return;
+    }
+    const ext = path.extname(assetPath).toLowerCase();
+    const mimeTypes = { ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif", ".webp": "image/webp", ".svg": "image/svg+xml" };
+    const contentType = mimeTypes[ext] || "application/octet-stream";
+    try {
+      const data = fs.readFileSync(assetPath);
+      res.writeHead(200, { "Content-Type": contentType });
+      res.end(data);
+    } catch {
+      res.writeHead(404, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ ok: false, error: "Asset not found" }));
+    }
     return;
   }
 

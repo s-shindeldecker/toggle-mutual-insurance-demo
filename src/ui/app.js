@@ -80,6 +80,10 @@ const App = () => {
   const [ldReady, setLdReady] = React.useState(false);
   const [mascotText, setMascotText] = React.useState(null);
   const [demoPanelOpen, setDemoPanelOpen] = React.useState(false);
+  const [aboutBtnColor, setAboutBtnColor] = React.useState("#2b6cb0");
+  const [aboutImages, setAboutImages] = React.useState({
+    hero: "none", team: "none", platform: "none", mascot: "none",
+  });
   const ldClientRef = React.useRef(null);
   const sessionKeyRef = React.useRef(null);
   const userKeyRef = React.useRef(null);
@@ -246,10 +250,26 @@ const App = () => {
           "Meet ToMu — the Tree Shrew"
         );
         setMascotText(value);
+        const btnColor = client.variation("about-us-button-color", "#2b6cb0");
+        setAboutBtnColor(btnColor);
+        const imgSlots = ["hero", "team", "platform", "mascot"];
+        const imgs = {};
+        for (const slot of imgSlots) {
+          imgs[slot] = client.variation(`about-${slot}-image`, "none");
+        }
+        setAboutImages(imgs);
         setLdReady(true);
         client.on("change:mascot-text-box", (nextValue) => {
           setMascotText(nextValue);
         });
+        client.on("change:about-us-button-color", (nextValue) => {
+          setAboutBtnColor(nextValue);
+        });
+        for (const slot of imgSlots) {
+          client.on(`change:about-${slot}-image`, (nextValue) => {
+            setAboutImages((prev) => ({ ...prev, [slot]: nextValue }));
+          });
+        }
       } catch (error) {
         // Keep default text on failure.
       }
@@ -259,6 +279,10 @@ const App = () => {
     return () => {
       if (ldClientRef.current) {
         ldClientRef.current.off("change:mascot-text-box");
+        ldClientRef.current.off("change:about-us-button-color");
+        for (const slot of ["hero", "team", "platform", "mascot"]) {
+          ldClientRef.current.off(`change:about-${slot}-image`);
+        }
       }
     };
   }, []);
@@ -710,7 +734,7 @@ const App = () => {
 
   return html`
     <div className="grid">
-      ${step !== "home" && html`<${Stepper} />`}
+      ${step !== "home" && step !== "about" && html`<${Stepper} />`}
 
       ${step === "home" &&
       html`
@@ -724,6 +748,18 @@ const App = () => {
             <div className="actions">
               <button type="button" onClick=${() => setStep("intake-address")}>
                 Get a quote
+              </button>
+              <button
+                type="button"
+                style=${{ background: aboutBtnColor }}
+                onClick=${() => {
+                  if (ldClientRef.current) {
+                    ldClientRef.current.track("about-us-clicked");
+                  }
+                  setStep("about");
+                }}
+              >
+                About Us
               </button>
             </div>
           </div>
@@ -743,6 +779,152 @@ const App = () => {
               <li>We evaluate eligibility, guardrails, and strategy.</li>
               <li>Review your quote and complete checkout.</li>
             </ul>
+          </div>
+        </div>
+      `}
+
+      ${step === "about" &&
+      html`
+        <div className="card" style=${{ maxWidth: "820px", margin: "0 auto" }}>
+          <h2>Toggle Mutual Insurance — About Us</h2>
+
+          ${aboutImages.hero !== "none" && html`
+            <img
+              className="banner-image"
+              src=${`/assets/about/hero/${aboutImages.hero}`}
+              alt="About Toggle Mutual"
+              style=${{ marginBottom: "20px" }}
+              onError=${(e) => { e.target.style.display = "none"; }}
+            />
+          `}
+
+          <h3>Our Story</h3>
+          <p>
+            Toggle Mutual Insurance was founded on a simple idea: insurance
+            shouldn't feel like guesswork.
+          </p>
+          <p>
+            In 2017, a small group of engineers, actuaries, and product thinkers
+            came together with a shared frustration. They had spent years inside
+            large insurance organizations watching pricing models grow more
+            complex, while customer understanding stayed stuck in the past.
+            Quotes were accurate—but opaque. Decisions were fast—but unexplained.
+          </p>
+          <p>They believed there was a better way.</p>
+          <p>
+            So they built Toggle Mutual: a modern insurance company designed from
+            the ground up to make decisions transparent, testable, and adaptable.
+          </p>
+          <p>From day one, Toggle Mutual focused on two things:</p>
+          <ul>
+            <li><strong>Clarity</strong> in decision-making</li>
+            <li><strong>Confidence</strong> in continuous improvement</li>
+          </ul>
+          <p>
+            Today, we're proud to be a fictional—but surprisingly
+            realistic—example of what insurance could look like when technology
+            and trust are designed together.
+          </p>
+
+          ${aboutImages.team !== "none" && html`
+            <img
+              className="banner-image"
+              src=${`/assets/about/team/${aboutImages.team}`}
+              alt="Toggle Mutual team"
+              style=${{ margin: "20px 0" }}
+              onError=${(e) => { e.target.style.display = "none"; }}
+            />
+          `}
+
+          <h3>What We Believe</h3>
+          <p>
+            <strong>Transparency builds trust</strong><br />
+            Every quote is the result of a series of decisions. We believe
+            customers—and teams—should be able to understand those decisions at a
+            high level, without needing a PhD in actuarial science.
+          </p>
+          <p>
+            <strong>Better systems learn over time</strong><br />
+            We continuously test and improve how we price risk and construct
+            offers. Small, safe changes—measured carefully—lead to better
+            outcomes for everyone.
+          </p>
+          <p>
+            <strong>Safety comes first</strong><br />
+            Insurance is a regulated, high-stakes domain. Any system we build
+            must prioritize correctness, consistency, and guardrails over speed
+            or novelty.
+          </p>
+          <p>
+            <strong>Technology should support people, not replace judgment</strong><br />
+            We use advanced models and tools to inform decisions—but we design
+            our systems so that humans remain in control.
+          </p>
+
+          ${aboutImages.platform !== "none" && html`
+            <img
+              className="banner-image"
+              src=${`/assets/about/platform/${aboutImages.platform}`}
+              alt="Toggle Mutual platform"
+              style=${{ margin: "20px 0" }}
+              onError=${(e) => { e.target.style.display = "none"; }}
+            />
+          `}
+
+          <h3>How We Work</h3>
+          <p>
+            Toggle Mutual operates as a modern, data-driven insurance platform:
+          </p>
+          <ul>
+            <li>We evaluate risk using deterministic models designed for clarity and consistency</li>
+            <li>We test improvements using controlled experiments</li>
+            <li>We monitor changes carefully before expanding them</li>
+            <li>We design our systems to make it easy to roll forward—or back—with confidence</li>
+          </ul>
+          <p>
+            While this demo simplifies many aspects of real insurance systems,
+            the patterns you see here reflect how leading teams approach
+            experimentation and decisioning in production environments.
+          </p>
+
+          <h3>Meet ToMu</h3>
+          <div style=${{ display: "flex", gap: "24px", alignItems: "flex-start", flexWrap: "wrap" }}>
+            ${aboutImages.mascot !== "none" && html`
+              <img
+                src=${`/assets/about/mascot/${aboutImages.mascot}`}
+                alt="ToMu the Tree Shrew mascot"
+                style=${{ width: "280px", borderRadius: "10px", flexShrink: "0" }}
+                onError=${(e) => { e.target.style.display = "none"; }}
+              />
+            `}
+            <div style=${{ flex: "1", minWidth: "220px" }}>
+              <p style=${{ marginTop: 0 }}>
+                At the heart of Toggle Mutual is our unofficial mascot:
+                <strong> ToMu the Tree Shrew</strong>.
+              </p>
+              <p>
+                ToMu represents curiosity, adaptability, and a healthy skepticism
+                of "the way things have always been done." Much like our approach
+                to insurance, ToMu is small, fast, and always learning.
+              </p>
+            </div>
+          </div>
+
+          <div style=${{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "10px", padding: "16px", marginTop: "24px" }}>
+            <h4 style=${{ margin: "0 0 8px", color: "#64748b" }}>A Note on This Experience</h4>
+            <p style=${{ margin: 0, color: "#64748b", fontSize: "14px" }}>
+              Toggle Mutual Insurance is a fictional company created to
+              demonstrate modern approaches to experimentation, model evaluation,
+              and decision transparency. While the products and quotes shown here
+              are not real, the underlying ideas are very real—and increasingly
+              important in how insurance is evolving.
+            </p>
+          </div>
+
+          <div className="actions" style=${{ marginTop: "24px" }}>
+            <button type="button" onClick=${() => setStep("home")}>
+              Back to Home
+            </button>
           </div>
         </div>
       `}
