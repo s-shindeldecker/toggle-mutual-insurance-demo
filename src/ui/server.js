@@ -227,9 +227,8 @@ const handler = async (req, res) => {
     return;
   }
 
-  // #region agent log
-  respondJson(res, 404, { debug_url: req.url, debug_method: req.method, debug_matched_path: req.headers["x-matched-path"] || null });
-  // #endregion
+  res.writeHead(404);
+  res.end();
 };
 
 if (require.main === module) {
