@@ -105,17 +105,18 @@ const respondJson = (res, statusCode, payload) => {
 };
 
 const handler = async (req, res) => {
+  const pathname = req.url.split("?")[0];
   const sessionId = ensureSession(req, res);
 
-  if (req.method === "GET" && req.url === "/") {
+  if (req.method === "GET" && pathname === "/") {
     const htmlPath = path.join(uiDir, "index.html");
     res.writeHead(200, { "Content-Type": "text/html" });
     res.end(fs.readFileSync(htmlPath));
     return;
   }
 
-  if (req.method === "GET" && req.url?.startsWith("/assets/")) {
-    const relPath = decodeURIComponent(req.url.slice("/assets/".length));
+  if (req.method === "GET" && pathname.startsWith("/assets/")) {
+    const relPath = decodeURIComponent(pathname.slice("/assets/".length));
     if (relPath.includes("..") || path.isAbsolute(relPath)) {
       res.writeHead(400, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ ok: false, error: "Invalid asset path" }));
@@ -142,14 +143,14 @@ const handler = async (req, res) => {
     return;
   }
 
-  if (req.method === "GET" && req.url === "/app.js") {
+  if (req.method === "GET" && pathname === "/app.js") {
     const jsPath = path.join(uiDir, "app.js");
     res.writeHead(200, { "Content-Type": "text/javascript" });
     res.end(fs.readFileSync(jsPath));
     return;
   }
 
-  if (req.method === "POST" && req.url === "/api/quote") {
+  if (req.method === "POST" && pathname === "/api/quote") {
     try {
       const body = await readJsonBody(req);
       const quoteInput = buildQuoteInput(body);
@@ -167,12 +168,12 @@ const handler = async (req, res) => {
     return;
   }
 
-  if (req.method === "GET" && req.url === "/api/flags/client-id") {
+  if (req.method === "GET" && pathname === "/api/flags/client-id") {
     respondJson(res, 200, { clientId: process.env.LAUNCHDARKLY_CLIENT_ID || "" });
     return;
   }
 
-  if (req.method === "POST" && req.url === "/api/checkout") {
+  if (req.method === "POST" && pathname === "/api/checkout") {
     try {
       const body = await readJsonBody(req);
       const { quoteId, userKey } = body;
@@ -206,7 +207,7 @@ const handler = async (req, res) => {
     return;
   }
 
-  if (req.method === "POST" && req.url === "/api/session/reset") {
+  if (req.method === "POST" && pathname === "/api/session/reset") {
     const newSessionId = crypto.randomUUID();
     res.setHeader("Set-Cookie", [
       `tm_session=${newSessionId}; HttpOnly; SameSite=Lax; Path=/`,
@@ -216,7 +217,7 @@ const handler = async (req, res) => {
     return;
   }
 
-  if (req.method === "GET" && req.url === "/api/debug/events") {
+  if (req.method === "GET" && pathname === "/api/debug/events") {
     if (process.env.DEBUG_EVENTS !== "true") {
       res.writeHead(404);
       res.end();
