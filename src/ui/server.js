@@ -104,7 +104,7 @@ const respondJson = (res, statusCode, payload) => {
   res.end(JSON.stringify(payload));
 };
 
-const server = http.createServer(async (req, res) => {
+const handler = async (req, res) => {
   const sessionId = ensureSession(req, res);
 
   if (req.method === "GET" && req.url === "/") {
@@ -228,8 +228,13 @@ const server = http.createServer(async (req, res) => {
 
   res.writeHead(404);
   res.end();
-});
+};
 
-server.listen(PORT, () => {
-  console.log(`Quote demo UI running at http://localhost:${PORT}`);
-});
+if (require.main === module) {
+  const server = http.createServer(handler);
+  server.listen(PORT, () => {
+    console.log(`Quote demo UI running at http://localhost:${PORT}`);
+  });
+}
+
+module.exports = handler;
