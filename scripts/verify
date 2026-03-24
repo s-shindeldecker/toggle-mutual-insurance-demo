@@ -13,7 +13,7 @@ node -e "
   require('./src/experiments/launchdarklyClient');
   require('./src/quote/constructOffer');
   require('./src/ui/server');
-  require('./api/[...path]');
+  require('./api/index');
   console.log('  All modules loaded successfully.');
 "
 
