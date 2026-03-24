@@ -347,6 +347,70 @@
         display: block;
         border-radius: 10px;
       }
+      .hamburger {
+        display: none;
+        flex-direction: column;
+        justify-content: center;
+        gap: 5px;
+        width: 36px;
+        height: 36px;
+        padding: 6px;
+        background: #0f2d52;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+      }
+      .hamburger span {
+        display: block;
+        width: 100%;
+        height: 2px;
+        background: #fff;
+        border-radius: 1px;
+        transition: transform 0.2s, opacity 0.2s;
+      }
+      .hamburger.active span:nth-child(1) {
+        transform: translateY(7px) rotate(45deg);
+      }
+      .hamburger.active span:nth-child(2) {
+        opacity: 0;
+      }
+      .hamburger.active span:nth-child(3) {
+        transform: translateY(-7px) rotate(-45deg);
+      }
+      @media (max-width: 768px) {
+        .hamburger {
+          display: flex;
+        }
+        .brand {
+          flex-wrap: wrap;
+        }
+        .logo {
+          width: 180px;
+        }
+        .nav {
+          display: none;
+          flex-direction: column;
+          width: 100%;
+          gap: 4px;
+          padding: 12px;
+          border-radius: 0 0 10px 10px;
+        }
+        .nav.open {
+          display: flex;
+        }
+        .nav a,
+        .nav .demo-control {
+          width: 100%;
+          padding: 12px;
+          box-sizing: border-box;
+          text-align: left;
+          font-size: 15px;
+        }
+        .nav .demo-control {
+          margin-top: 4px;
+          border-color: rgba(255,255,255,0.25);
+        }
+      }
     </style>
   </head>
   <body>
@@ -355,7 +419,10 @@
         <a class="logo" href="/" id="home-logo" aria-label="Toggle Mutual home">
           <img src="/assets/tomu-logo.png" alt="Toggle Mutual logo" />
         </a>
-        <nav class="nav" aria-label="Primary">
+        <button type="button" class="hamburger" id="nav-toggle" aria-label="Toggle menu" aria-expanded="false">
+          <span></span><span></span><span></span>
+        </button>
+        <nav class="nav" id="primary-nav" aria-label="Primary">
           <a href="/" id="home-link">Home</a>
           <a href="#">Get a quote</a>
           <a href="#">Insurance & more</a>
@@ -371,6 +438,25 @@
     <div class="container page">
       <div id="app"></div>
     </div>
+    <script>
+      (function() {
+        var toggle = document.getElementById('nav-toggle');
+        var nav = document.getElementById('primary-nav');
+        if (!toggle || !nav) return;
+        toggle.addEventListener('click', function() {
+          var open = nav.classList.toggle('open');
+          toggle.classList.toggle('active', open);
+          toggle.setAttribute('aria-expanded', String(open));
+        });
+        nav.addEventListener('click', function(e) {
+          if (e.target.tagName === 'A') {
+            nav.classList.remove('open');
+            toggle.classList.remove('active');
+            toggle.setAttribute('aria-expanded', 'false');
+          }
+        });
+      })();
+    </script>
     <script src="https://unpkg.com/launchdarkly-js-client-sdk@3"></script>
     <script type="module" src="/app.js"></script>
   </body>
