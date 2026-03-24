@@ -12,6 +12,9 @@ node -e "
   require('./src/analytics/validate');
   require('./src/experiments/launchdarklyClient');
   require('./src/quote/constructOffer');
+  require('./src/ai/aiClient');
+  require('./src/ai/tools');
+  require('./src/ai/chatHandler');
   require('./src/ui/server');
   require('./api/index');
   console.log('  All modules loaded successfully.');

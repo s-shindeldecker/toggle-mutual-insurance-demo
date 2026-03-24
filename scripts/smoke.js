@@ -114,6 +114,8 @@ async function run() {
     assert("GET /api/flags/client-id returns 200", flags.status === 200);
     const flagsBody = JSON.parse(flags.body);
     assert("client-id response has clientId key", "clientId" in flagsBody);
+    assert("client-id response has chatEnabled field", "chatEnabled" in flagsBody);
+    assert("chatEnabled is false when LD disabled", flagsBody.chatEnabled === false);
 
     // --- POST /api/quote (eligible applicant) ---
     const quote = await request("POST", "/api/quote", quotePayload);
@@ -192,6 +194,12 @@ async function run() {
     assert("tm_session_public cookie rotated", cookieJar.tm_session_public !== preResetSession);
     assert("Rotated cookies have same value", cookieJar.tm_session === cookieJar.tm_session_public);
     assert("Rotated session matches response", cookieJar.tm_session === resetBody.sessionId);
+
+    // --- POST /api/chat (chat disabled by default when LD is off) ---
+    const chatRes = await request("POST", "/api/chat", { messages: [{ role: "user", content: "Hello" }] });
+    assert("POST /api/chat returns 404 when chat disabled", chatRes.status === 404);
+    const chatBody = JSON.parse(chatRes.body);
+    assert("Chat disabled response has ok: false", chatBody.ok === false);
 
     // --- lifecycle validation ---
     assert("No invalid lifecycle stage warnings in server log", !serverLog.includes("Invalid lifecycle stage"));

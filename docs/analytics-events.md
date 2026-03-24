@@ -288,6 +288,20 @@ These are reserved names for upcoming functionality. Do not emit yet.
 }
 ```
 
+## Chat agent entry point
+
+The "Chat with ToMu" feature (`POST /api/chat`) is an alternative entry point
+for the quote flow. When the chat agent invokes `submit_quote`, it calls the
+same `runQuoteDecisionFlow()` as the form-based `POST /api/quote`. All existing
+quote lifecycle events (`quote_started`, `quote_eligibility_evaluated`,
+`quote_offer_constructed`, `quote_completed`) fire normally with the correct
+session context.
+
+LLM metrics (token usage, duration, cost) are automatically captured by the
+LaunchDarkly AI SDK (`@launchdarkly/server-sdk-ai`) via `tracker.trackMetricsOf()`
+and appear on the AI Config's Monitoring tab in LaunchDarkly. No additional
+lifecycle events are emitted for chat interactions.
+
 ## Extension rules
 - Additive-only changes: you may add new optional fields at any time.
 - Breaking changes require a new event name, e.g., `quote_completed_v2`.

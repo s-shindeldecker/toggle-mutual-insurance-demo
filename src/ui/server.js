@@ -10,6 +10,8 @@ const { AnalyticsEvents } = require("../analytics/events");
 const { QUOTE_LIFECYCLE } = require("../analytics/lifecycle");
 const { trackEvent } = require("../analytics/tracker");
 const { eventEmitter } = require("../analytics/eventEmitter");
+const { getBooleanFlag } = require("../experiments/launchdarklyClient");
+const { handleChat } = require("../ai/chatHandler");
 
 const PORT = process.env.PORT || 3000;
 let nextConfirmationId = 1;
@@ -169,7 +171,12 @@ const handler = async (req, res) => {
   }
 
   if (req.method === "GET" && pathname === "/api/flags/client-id") {
-    respondJson(res, 200, { clientId: process.env.LAUNCHDARKLY_CLIENT_ID || "" });
+    const chatContext = { kind: "multi", session: { key: sessionId }, user: { key: "anon" } };
+    let chatEnabled = false;
+    try {
+      chatEnabled = await getBooleanFlag("tomu-chat-enabled", chatContext, false);
+    } catch (_) { /* flag eval must not block */ }
+    respondJson(res, 200, { clientId: process.env.LAUNCHDARKLY_CLIENT_ID || "", chatEnabled });
     return;
   }
 
@@ -214,6 +221,27 @@ const handler = async (req, res) => {
       `tm_session_public=${newSessionId}; SameSite=Lax; Path=/`,
     ]);
     respondJson(res, 200, { ok: true, sessionId: newSessionId });
+    return;
+  }
+
+  if (req.method === "POST" && pathname === "/api/chat") {
+    const chatContext = { kind: "multi", session: { key: sessionId }, user: { key: "anon" } };
+    let chatEnabled = false;
+    try {
+      chatEnabled = await getBooleanFlag("tomu-chat-enabled", chatContext, false);
+    } catch (_) { /* flag eval must not block */ }
+    if (!chatEnabled) {
+      respondJson(res, 404, { ok: false, error: "Chat is not enabled" });
+      return;
+    }
+    try {
+      const body = await readJsonBody(req);
+      const result = await handleChat(body.messages || [], sessionId);
+      respondJson(res, 200, result);
+    } catch (error) {
+      console.error("[AI] Chat handler error:", error.message);
+      respondJson(res, 500, { ok: false, error: "Chat request failed" });
+    }
     return;
   }
 

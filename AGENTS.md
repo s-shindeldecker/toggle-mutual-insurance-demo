@@ -71,6 +71,7 @@ asked. Keep all source files as CommonJS `.js`.
 | `pricing-model-variant`            | string  | `"baseline"` |
 | `shadow-risk-scoring-enabled`      | boolean | `false`      |
 | `shadow-pricing-scoring-enabled`   | boolean | `false`      |
+| `tomu-chat-enabled`               | boolean | `false`      |
 
 ### Client-side flags (src/ui/app.js)
 
@@ -88,6 +89,17 @@ asked. Keep all source files as CommonJS `.js`.
 Both server and client build `kind: "multi"` contexts with sub-contexts:
 `session`, `user`, `vehicle`, `location`. Client and server contexts are
 built independently from the same form data.
+
+### AI Configs (src/ai/)
+
+| Config key          | Mode  | Purpose                                      |
+|---------------------|-------|----------------------------------------------|
+| `tomu-quote-agent`  | agent | Conversational quote agent (Chat with ToMu)  |
+
+The AI Config provides instructions, model selection, and tool definitions for
+the chat agent. The server code falls back to a built-in config when LD is
+unavailable. LLM metrics (token usage, duration, cost) are automatically
+captured via `@launchdarkly/server-sdk-ai` `tracker.trackMetricsOf()`.
 
 ### MCP tooling
 
@@ -117,6 +129,7 @@ integration:
 | `PORT`                   | Server listen port (default 3000)|
 | `LAUNCHDARKLY_SDK_KEY`   | Server-side flag evaluation      |
 | `LAUNCHDARKLY_CLIENT_ID` | Client-side flag evaluation      |
+| `OPENAI_API_KEY`         | LLM provider for chat agent      |
 
 The app runs without LD keys — all flags fall back to defaults.
 
@@ -138,6 +151,7 @@ src/
 ├── models/fake/     # Deterministic fake risk/pricing/propensity models
 ├── experiments/     # LaunchDarkly server-side client and flag helpers
 ├── analytics/       # Event emitter, tracker, event name constants
+├── ai/              # AI agent: LD AI client, chat handler, tool implementations
 └── example/         # CLI runner for the quote flow
 scripts/
 ├── dev              # Dev server launcher

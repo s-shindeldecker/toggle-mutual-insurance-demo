@@ -84,6 +84,12 @@ const App = () => {
   const [aboutImages, setAboutImages] = React.useState({
     hero: "none", team: "none", platform: "none", mascot: "none",
   });
+  const [chatEnabled, setChatEnabled] = React.useState(false);
+  const [chatMessages, setChatMessages] = React.useState([]);
+  const [chatLoading, setChatLoading] = React.useState(false);
+  const [chatQuoteResult, setChatQuoteResult] = React.useState(null);
+  const chatInputRef = React.useRef(null);
+  const chatEndRef = React.useRef(null);
   const ldClientRef = React.useRef(null);
   const sessionKeyRef = React.useRef(null);
   const userKeyRef = React.useRef(null);
@@ -229,6 +235,7 @@ const App = () => {
         if (!payload?.clientId) {
           return;
         }
+        if (payload.chatEnabled) setChatEnabled(true);
 
         // Client-side LaunchDarkly is for presentation-only flags. Never evaluate decision flags here.
         if (!ldClientRef.current) {
@@ -509,6 +516,42 @@ const App = () => {
     setTimeout(() => { btn.textContent = "Copy snapshot"; }, 1500);
   };
 
+  const sendChatMessage = async (text) => {
+    if (!text.trim() || chatLoading) return;
+    const userMsg = { role: "user", content: text.trim() };
+    const updated = [...chatMessages, userMsg];
+    setChatMessages(updated);
+    setChatLoading(true);
+    try {
+      const response = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages: updated.filter((m) => m.role !== "system") }),
+      });
+      if (!response.ok) throw new Error("Chat request failed");
+      const payload = await response.json();
+      if (payload.message) {
+        setChatMessages((prev) => [...prev, payload.message]);
+      }
+      if (payload.quoteResult) {
+        setChatQuoteResult(payload.quoteResult);
+      }
+    } catch (err) {
+      setChatMessages((prev) => [
+        ...prev,
+        { role: "assistant", content: "Sorry, something went wrong. Please try again." },
+      ]);
+    } finally {
+      setChatLoading(false);
+    }
+  };
+
+  React.useEffect(() => {
+    if (chatEndRef.current) {
+      chatEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [chatMessages, chatLoading]);
+
   const DemoPanel = () => {
     if (!demoPanelOpen) {
       return null;
@@ -734,7 +777,7 @@ const App = () => {
 
   return html`
     <div className="grid">
-      ${step !== "home" && step !== "about" && html`<${Stepper} />`}
+      ${step !== "home" && step !== "about" && step !== "chat" && html`<${Stepper} />`}
 
       ${step === "home" &&
       html`
@@ -761,6 +804,19 @@ const App = () => {
               >
                 About Us
               </button>
+              ${chatEnabled && html`
+                <button
+                  type="button"
+                  style=${{ background: "#16a34a" }}
+                  onClick=${() => {
+                    setChatMessages([]);
+                    setChatQuoteResult(null);
+                    setStep("chat");
+                  }}
+                >
+                  Chat with ToMu
+                </button>
+              `}
             </div>
           </div>
           <div className="hero-visual">
@@ -1284,6 +1340,99 @@ const App = () => {
           <div className="actions">
             <button className="secondary" type="button" onClick=${startOver}>
               Start a new quote
+            </button>
+          </div>
+        </div>
+      `}
+
+      ${step === "chat" && html`
+        <div className="card" style=${{ maxWidth: "720px", margin: "0 auto" }}>
+          <div className="chat-header">
+            <img
+              src="/assets/Friendly_tree_shrew_in_a_hoodie-30859d22-2387-4192-9f52-b81b25dc68f1.png"
+              alt="ToMu"
+              className="chat-avatar-lg"
+            />
+            <div>
+              <h2 style=${{ margin: 0 }}>Chat with ToMu</h2>
+              <p className="muted" style=${{ margin: 0 }}>
+                Tell ToMu about yourself and your vehicle to get a quote.
+              </p>
+            </div>
+          </div>
+
+          <div className="chat-container">
+            ${chatMessages.length === 0 && !chatLoading && html`
+              <div className="chat-empty">
+                <p>Hi! I'm ToMu, your insurance assistant. Tell me about yourself and I'll help you get a quote.</p>
+              </div>
+            `}
+            ${chatMessages.map((msg, i) => html`
+              <div key=${i} className=${`chat-bubble chat-bubble-${msg.role}`}>
+                ${msg.role === "assistant" && html`
+                  <img
+                    src="/assets/Friendly_tree_shrew_in_a_hoodie-30859d22-2387-4192-9f52-b81b25dc68f1.png"
+                    alt="ToMu"
+                    className="chat-avatar"
+                  />
+                `}
+                <div className="chat-bubble-content">${msg.content}</div>
+              </div>
+            `)}
+            ${chatLoading && html`
+              <div className="chat-bubble chat-bubble-assistant">
+                <img
+                  src="/assets/Friendly_tree_shrew_in_a_hoodie-30859d22-2387-4192-9f52-b81b25dc68f1.png"
+                  alt="ToMu"
+                  className="chat-avatar"
+                />
+                <div className="chat-bubble-content chat-typing">ToMu is thinking...</div>
+              </div>
+            `}
+            <div ref=${chatEndRef} />
+          </div>
+
+          ${chatQuoteResult && chatQuoteResult.offer && html`
+            <div className="chat-quote-result">
+              <div className="offer-card">
+                <span className="badge">Your quote</span>
+                <div className="offer-price">$${chatQuoteResult.offer.price.toFixed(2)} / mo</div>
+                <div>${chatQuoteResult.offer.coverageTier} coverage</div>
+              </div>
+              <div className="actions" style=${{ marginTop: "12px" }}>
+                <button type="button" onClick=${() => {
+                  setResult(chatQuoteResult);
+                  setStep("summary");
+                }}>
+                  View full quote
+                </button>
+              </div>
+            </div>
+          `}
+
+          <form className="chat-input-form" onSubmit=${(e) => {
+            e.preventDefault();
+            const input = chatInputRef.current;
+            if (input && input.value.trim()) {
+              sendChatMessage(input.value);
+              input.value = "";
+            }
+          }}>
+            <input
+              ref=${chatInputRef}
+              type="text"
+              placeholder="Type your message..."
+              className="chat-input"
+              disabled=${chatLoading}
+            />
+            <button type="submit" className="chat-send" disabled=${chatLoading}>
+              Send
+            </button>
+          </form>
+
+          <div className="actions" style=${{ marginTop: "12px" }}>
+            <button type="button" className="ghost" onClick=${() => setStep("home")}>
+              Back to Home
             </button>
           </div>
         </div>

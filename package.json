@@ -22,9 +22,11 @@
   },
   "homepage": "https://github.com/s-shindeldecker/toggle-mutual-insurance-demo#readme",
   "dependencies": {
+    "@launchdarkly/server-sdk-ai": "^0.16.7",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
     "launchdarkly-node-server-sdk": "^7.0.4",
+    "openai": "^6.32.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4"
   }
