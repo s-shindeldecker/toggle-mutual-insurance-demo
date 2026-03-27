@@ -130,7 +130,11 @@ const App = () => {
     };
 
     if (stage === "session") {
-      return sessionContext;
+      return {
+        kind: "multi",
+        session: sessionContext,
+        user: { key: userKeyRef.current },
+      };
     }
 
     const addressParts = parseAddress(data.address || "");
@@ -191,7 +195,6 @@ const App = () => {
   };
 
   const goHome = () => {
-    userKeyRef.current = null;
     setSelectedPreset(presets[0].id);
     setForm(presets[0].data);
     setCheckout({ fullName: "", email: "", address: "" });
@@ -211,7 +214,7 @@ const App = () => {
       return;
     }
     sessionKeyRef.current = getSessionKey();
-    userKeyRef.current = null;
+    userKeyRef.current = generateUserKey();
     setSelectedPreset(presets[0].id);
     setForm(presets[0].data);
     setCheckout({ fullName: "", email: "", address: "" });
@@ -240,6 +243,7 @@ const App = () => {
         // Client-side LaunchDarkly is for presentation-only flags. Never evaluate decision flags here.
         if (!ldClientRef.current) {
           sessionKeyRef.current = getSessionKey();
+          userKeyRef.current = generateUserKey();
           const context = buildClientContext(form, "session");
           ldClientRef.current = window.LDClient?.initialize(
             payload.clientId,
@@ -259,12 +263,6 @@ const App = () => {
         setMascotText(value);
         const btnColor = client.variation("about-us-button-color", "#2b6cb0");
         setAboutBtnColor(btnColor);
-        const imgSlots = ["hero", "team", "platform", "mascot"];
-        const imgs = {};
-        for (const slot of imgSlots) {
-          imgs[slot] = client.variation(`about-${slot}-image`, "none");
-        }
-        setAboutImages(imgs);
         setLdReady(true);
         client.on("change:mascot-text-box", (nextValue) => {
           setMascotText(nextValue);
@@ -272,11 +270,6 @@ const App = () => {
         client.on("change:about-us-button-color", (nextValue) => {
           setAboutBtnColor(nextValue);
         });
-        for (const slot of imgSlots) {
-          client.on(`change:about-${slot}-image`, (nextValue) => {
-            setAboutImages((prev) => ({ ...prev, [slot]: nextValue }));
-          });
-        }
       } catch (error) {
         // Keep default text on failure.
       }
@@ -287,12 +280,36 @@ const App = () => {
       if (ldClientRef.current) {
         ldClientRef.current.off("change:mascot-text-box");
         ldClientRef.current.off("change:about-us-button-color");
-        for (const slot of ["hero", "team", "platform", "mascot"]) {
-          ldClientRef.current.off(`change:about-${slot}-image`);
-        }
       }
     };
   }, []);
+
+  React.useEffect(() => {
+    if (step !== "about" || !ldReady) return;
+    const client = ldClientRef.current;
+    if (!client) return;
+
+    const imgSlots = ["hero", "team", "platform", "mascot"];
+    const imgs = {};
+    for (const slot of imgSlots) {
+      imgs[slot] = client.variation(`about-${slot}-image`, "none");
+    }
+    setAboutImages(imgs);
+
+    const handlers = {};
+    for (const slot of imgSlots) {
+      handlers[slot] = (nextValue) => {
+        setAboutImages((prev) => ({ ...prev, [slot]: nextValue }));
+      };
+      client.on(`change:about-${slot}-image`, handlers[slot]);
+    }
+
+    return () => {
+      for (const slot of imgSlots) {
+        client.off(`change:about-${slot}-image`, handlers[slot]);
+      }
+    };
+  }, [step, ldReady]);
 
   React.useEffect(() => {
     const handleHomeClick = (event) => {
@@ -804,19 +821,6 @@ const App = () => {
               >
                 About Us
               </button>
-              ${chatEnabled && html`
-                <button
-                  type="button"
-                  style=${{ background: "#16a34a" }}
-                  onClick=${() => {
-                    setChatMessages([]);
-                    setChatQuoteResult(null);
-                    setStep("chat");
-                  }}
-                >
-                  Chat with ToMu
-                </button>
-              `}
             </div>
           </div>
           <div className="hero-visual">
@@ -963,6 +967,22 @@ const App = () => {
                 of "the way things have always been done." Much like our approach
                 to insurance, ToMu is small, fast, and always learning.
               </p>
+              ${chatEnabled && html`
+                <button
+                  type="button"
+                  style=${{ background: "#16a34a", marginTop: "8px" }}
+                  onClick=${() => {
+                    if (ldClientRef.current) {
+                      ldClientRef.current.track("chat-with-tomu-clicked");
+                    }
+                    setChatMessages([]);
+                    setChatQuoteResult(null);
+                    setStep("chat");
+                  }}
+                >
+                  Chat with ToMu
+                </button>
+              `}
             </div>
           </div>
 
