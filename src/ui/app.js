@@ -290,12 +290,6 @@ const App = () => {
     if (!client) return;
 
     const imgSlots = ["hero", "team", "platform", "mascot"];
-    const imgs = {};
-    for (const slot of imgSlots) {
-      imgs[slot] = client.variation(`about-${slot}-image`, "none");
-    }
-    setAboutImages(imgs);
-
     const handlers = {};
     for (const slot of imgSlots) {
       handlers[slot] = (nextValue) => {
@@ -815,6 +809,13 @@ const App = () => {
                 onClick=${() => {
                   if (ldClientRef.current) {
                     ldClientRef.current.track("about-us-clicked");
+                    if (ldReady) {
+                      const imgs = {};
+                      for (const slot of ["hero", "team", "platform", "mascot"]) {
+                        imgs[slot] = ldClientRef.current.variation(`about-${slot}-image`, "none");
+                      }
+                      setAboutImages(imgs);
+                    }
                   }
                   setStep("about");
                 }}
